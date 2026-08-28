@@ -121,7 +121,7 @@ export default function HomePage() {
                   <div className="flex items-center justify-between p-3 rounded-xl border-2 border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/40 text-xs font-semibold text-foreground">
                     <div className="flex items-center gap-2">
                       <span className="h-5 w-5 rounded-md bg-emerald-600 text-white flex items-center justify-center text-[10px]">A</span>
-                      <span>Tiếng T3 Gallop ở mỏm tim (Độ đặc hiệu > 95%)</span>
+                      <span>Tiếng T3 Gallop ở mỏm tim (Độ đặc hiệu &gt; 95%)</span>
                     </div>
                     <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                   </div>
