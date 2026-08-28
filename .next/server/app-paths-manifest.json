@@ -1,0 +1,9 @@
+{
+  "/page": "app/page.js",
+  "/folders/page": "app/folders/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/quiz/[deckId]/page": "app/quiz/[deckId]/page.js",
+  "/create/page": "app/create/page.js",
+  "/flashcards/[deckId]/page": "app/flashcards/[deckId]/page.js",
+  "/ai-tutor/page": "app/ai-tutor/page.js"
+}

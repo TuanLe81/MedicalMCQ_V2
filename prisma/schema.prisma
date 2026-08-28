@@ -1,0 +1,226 @@
+// Prisma Schema for MedLearn - Medical E-Learning Platform with Bloom's Taxonomy Analytics
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// ENUMS
+// -----------------------------------------------------------------------------
+
+enum Role {
+  STUDENT
+  RESIDENT_DOCTOR
+  LECTURER
+  ADMIN
+}
+
+enum BloomLevel {
+  REMEMBERING  // Nhớ: Thuộc lòng định nghĩa, giải phẫu, chỉ số sinh học
+  UNDERSTANDING // Hiểu: Giải thích cơ chế bệnh sinh, dược động học
+  APPLYING     // Vận dụng: Tính liều thuốc, áp dụng phác đồ điều trị
+  ANALYZING    // Phân tích: Biện luận ca lâm sàng, chẩn đoán phân biệt
+  EVALUATING   // Đánh giá: Phê bình chỉ định cận lâm sàng, tiên lượng bệnh
+  CREATING     // Sáng tạo: Thiết kế phác đồ cá thể hóa, giải pháp can thiệp
+}
+
+enum DeckType {
+  MCQ
+  FLASHCARD
+  HYBRID
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+// -----------------------------------------------------------------------------
+// USER & AUTHENTICATION
+// -----------------------------------------------------------------------------
+
+model User {
+  id            String         @id @default(cuid())
+  name          String?
+  email         String?        @unique
+  emailVerified DateTime?
+  image         String?
+  role          Role           @default(STUDENT)
+  medicalSchool String?        @default("Đại học Y Dược TP.HCM")
+  yearOfStudy   Int?           @default(4) // Y1 -> Y6
+  streakCount   Int            @default(0)
+  lastStudyDate DateTime?
+  
+  // Relations
+  folders       Folder[]
+  decks         Deck[]
+  quizAttempts  QuizAttempt[]
+  studySessions StudySession[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// HIERARCHICAL FOLDERS & DECKS
+// -----------------------------------------------------------------------------
+
+model Folder {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  color       String?   @default("#0284c7")
+  icon        String?   @default("Folder")
+  
+  // Nested Subfolders (Self-referencing relation)
+  parentId    String?
+  parent      Folder?   @relation("SubFolders", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Folder[]  @relation("SubFolders")
+  
+  // Ownership
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Content inside Folder
+  decks       Deck[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([parentId])
+}
+
+model Deck {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  type        DeckType     @default(MCQ)
+  specialty   String       @default("Nội Khoa") // Tim mạch, Hô hấp, Tiêu hóa, Thần kinh...
+  isPublic    Boolean      @default(false)
+  
+  // Organization
+  folderId    String?
+  folder      Folder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Content
+  questions   Question[]
+  flashcards  Flashcard[]
+  
+  // History
+  attempts    QuizAttempt[]
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([userId])
+  @@index([folderId])
+}
+
+// -----------------------------------------------------------------------------
+// MCQ & QUESTIONS WITH BLOOM'S TAXONOMY
+// -----------------------------------------------------------------------------
+
+model Question {
+  id               String       @id @default(cuid())
+  deckId           String
+  deck             Deck         @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  
+  // Medical Case Context
+  clinicalVignette String?      @db.Text // Tình huống lâm sàng / Bệnh sử ca bệnh
+  questionText     String       @db.Text
+  
+  // Bloom's Cognitive Classification
+  bloomLevel       BloomLevel   @default(REMEMBERING)
+  difficulty       Difficulty   @default(MEDIUM)
+  
+  // Options & Solution
+  options          String[]     // Danh sách 4 hoặc 5 lựa chọn [A, B, C, D]
+  correctIndex     Int          // Index của đáp án đúng (0-3)
+  explanation      String       @db.Text // Giải thích cơ chế bệnh sinh chi tiết
+  
+  orderIndex       Int          @default(0)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([deckId])
+  @@index([bloomLevel])
+}
+
+// -----------------------------------------------------------------------------
+// FLASHCARDS WITH SPACED REPETITION
+// -----------------------------------------------------------------------------
+
+model Flashcard {
+  id          String      @id @default(cuid())
+  deckId      String
+  deck        Deck        @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  
+  front       String      @db.Text // Mặt trước (Thuật ngữ, hình ảnh, triệu chứng)
+  back        String      @db.Text // Mặt sau (Cơ chế, định nghĩa, hướng xử trí)
+  hint        String?     @db.Text // Gợi ý lâm sàng
+  
+  bloomLevel  BloomLevel  @default(REMEMBERING)
+  
+  // Spaced Repetition Metrics (SM-2 Algorithm)
+  repetitions Int         @default(0)
+  interval    Int         @default(1)    // Days
+  easeFactor  Float       @default(2.5)
+  dueDate     DateTime    @default(now())
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([deckId])
+}
+
+// -----------------------------------------------------------------------------
+// ATTEMPTS, SESSIONS & BLOOM ANALYTICS
+// -----------------------------------------------------------------------------
+
+model QuizAttempt {
+  id              String         @id @default(cuid())
+  userId          String
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deckId          String
+  deck            Deck           @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  
+  // Score metrics
+  totalQuestions  Int
+  correctCount    Int
+  incorrectCount  Int
+  scorePercentage Float
+  timeSpentSeconds Int
+  
+  // Bloom's Taxonomy Breakdown JSON
+  // Example: { "REMEMBERING": { "correct": 4, "total": 5, "percentage": 80 }, ... }
+  bloomMatrix     Json
+  
+  // User answers detail
+  userAnswers     Json
+  
+  createdAt       DateTime       @default(now())
+
+  @@index([userId])
+  @@index([deckId])
+}
+
+model StudySession {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  durationMinutes Int
+  cardsReviewed  Int       @default(0)
+  mcqCompleted   Int       @default(0)
+  createdAt      DateTime  @default(now())
+
+  @@index([userId])
+}
+
