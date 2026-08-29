@@ -105,9 +105,12 @@ export default function LoginPage() {
                 <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Mật Khẩu *
                 </label>
-                <span className="text-[11px] text-sky-600 dark:text-sky-400 hover:underline cursor-pointer">
+                <Link
+                  href="/forgot-password"
+                  className="text-[11px] text-sky-600 dark:text-sky-400 hover:underline font-semibold"
+                >
                   Quên mật khẩu?
-                </span>
+                </Link>
               </div>
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

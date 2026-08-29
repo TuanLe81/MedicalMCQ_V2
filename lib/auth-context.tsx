@@ -19,6 +19,9 @@ interface AuthContextType {
   }) => { success: boolean; error?: string };
   logout: () => void;
   updateUserStreak: () => void;
+  // Forgot / Reset Password
+  verifyAccountExists: (identity: string) => { success: boolean; user?: UserProfile; error?: string };
+  resetPassword: (identity: string, newPass: string) => { success: boolean; error?: string };
   // Folder Sharing System
   shareRequests: FolderShareRequest[];
   sendShareRequest: (folder: FolderNode, target: string) => { success: boolean; error?: string };
@@ -175,7 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       usersList.push(newUser);
       localStorage.setItem("medlearn_users", JSON.stringify(usersList));
 
-      // CRITICAL: Initialize EMPTY folders for newly registered users (no sample mock folders!)
+      // Initialize EMPTY folders for newly registered users
       localStorage.setItem(`medlearn_folders_${newUserId}`, JSON.stringify([]));
 
       setUser(newUser);
@@ -198,11 +201,73 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("medlearn_current_user", JSON.stringify(updated));
   };
 
+  // Verify if account exists for Forgot Password flow
+  const verifyAccountExists = (identity: string): { success: boolean; user?: UserProfile; error?: string } => {
+    try {
+      const usersStr = localStorage.getItem("medlearn_users");
+      const usersList: UserProfile[] = usersStr ? JSON.parse(usersStr) : [];
+
+      const found = usersList.find(
+        (u) =>
+          u.email?.toLowerCase() === identity.toLowerCase().trim() ||
+          u.username?.toLowerCase() === identity.toLowerCase().trim()
+      );
+
+      if (!found) {
+        return {
+          success: false,
+          error: "Không tìm thấy tài khoản nào khớp với Email hoặc Tên đăng nhập này!",
+        };
+      }
+
+      return { success: true, user: found };
+    } catch (e) {
+      return { success: false, error: "Lỗi kiểm tra tài khoản, vui lòng thử lại!" };
+    }
+  };
+
+  // Reset Password Function
+  const resetPassword = (identity: string, newPass: string): { success: boolean; error?: string } => {
+    try {
+      const usersStr = localStorage.getItem("medlearn_users");
+      const usersList: UserProfile[] = usersStr ? JSON.parse(usersStr) : [];
+
+      const target = usersList.find(
+        (u) =>
+          u.email?.toLowerCase() === identity.toLowerCase().trim() ||
+          u.username?.toLowerCase() === identity.toLowerCase().trim()
+      );
+
+      if (!target) {
+        return { success: false, error: "Tài khoản không tồn tại!" };
+      }
+
+      if (target.isDemo) {
+        return {
+          success: false,
+          error: "🔒 Tài khoản mẫu dùng thử không thể đổi mật khẩu. Vui lòng tạo tài khoản mới!",
+        };
+      }
+
+      target.password = newPass;
+      localStorage.setItem("medlearn_users", JSON.stringify(usersList));
+
+      // If resetting currently active user, sync session
+      if (user && (user.id === target.id || user.email === target.email)) {
+        setUser({ ...user, password: newPass });
+        localStorage.setItem("medlearn_current_user", JSON.stringify({ ...user, password: newPass }));
+      }
+
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: "Lỗi cập nhật mật khẩu mới!" };
+    }
+  };
+
   // Get folders for current user (EMPTY for new accounts, MOCK for demo)
   const getUserFolders = (): FolderNode[] => {
     if (!user) return [];
     if (user.isDemo) {
-      // Demo accounts show mock sample folders with isSystemMock: true
       return MOCK_FOLDERS.map(f => ({ ...f, isSystemMock: true }));
     }
     const userFoldersStr = localStorage.getItem(`medlearn_folders_${user.id}`);
@@ -278,7 +343,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setShareRequests(allShares);
 
     if (accept && !user.isDemo) {
-      // Add shared folder into user's folders
       const currentFolders = getUserFolders();
       const folderToAdd: FolderNode = {
         ...targetReq.folderData,
@@ -302,6 +366,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         register,
         logout,
         updateUserStreak,
+        verifyAccountExists,
+        resetPassword,
         shareRequests,
         sendShareRequest,
         respondShareRequest,
