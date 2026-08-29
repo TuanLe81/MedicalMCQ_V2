@@ -23,7 +23,7 @@ import {
   UserPlus,
   LogOut,
   ChevronDown,
-  UserCheck,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -42,13 +42,13 @@ export function Navbar() {
   }, []);
 
   const navLinks = [
-    { href: "/", label: "Trang Chủ", icon: BookOpen },
-    { href: "/dashboard", label: "Dashboard & Bloom", icon: BarChart3 },
-    { href: "/folders", label: "Cây Thư Mục", icon: FolderTree },
-    { href: "/quiz/deck_cardio_01", label: "Luyện MCQ", icon: Layers },
-    { href: "/flashcards/deck_pharm_01", label: "Flashcards", icon: Stethoscope },
-    { href: "/create", label: "Biên Soạn & Import", icon: PlusCircle },
-    { href: "/ai-tutor", label: "MediAI Tutor", icon: Bot, isSpecial: true },
+    { href: "/", label: "Trang Chủ", icon: BookOpen, isPublic: true },
+    { href: "/dashboard", label: "Dashboard & Bloom", icon: BarChart3, isPublic: false },
+    { href: "/folders", label: "Cây Thư Mục", icon: FolderTree, isPublic: false },
+    { href: "/quiz/deck_cardio_01", label: "Luyện MCQ", icon: Layers, isPublic: false },
+    { href: "/flashcards/deck_pharm_01", label: "Flashcards", icon: Stethoscope, isPublic: false },
+    { href: "/create", label: "Biên Soạn & Import", icon: PlusCircle, isPublic: false },
+    { href: "/ai-tutor", label: "MediAI Tutor", icon: Bot, isSpecial: true, isPublic: false },
   ];
 
   const getInitials = (name?: string) => {
@@ -79,6 +79,8 @@ export function Navbar() {
           {navLinks.map((link) => {
             const Icon = link.icon;
             const isActive = pathname === link.href;
+            const isLocked = !link.isPublic && !isAuthenticated;
+
             return (
               <Link
                 key={link.href}
@@ -93,9 +95,11 @@ export function Navbar() {
               >
                 <Icon className="h-4 w-4" />
                 <span>{link.label}</span>
-                {link.isSpecial && (
+                {isLocked ? (
+                  <Lock className="h-3 w-3 text-muted-foreground/60 ml-0.5" />
+                ) : link.isSpecial ? (
                   <Sparkles className="h-3 w-3 text-amber-500 animate-pulse" />
-                )}
+                ) : null}
               </Link>
             );
           })}
@@ -103,7 +107,7 @@ export function Navbar() {
 
         {/* Right Section: Streak, Theme Toggle, User Profile / Auth Buttons */}
         <div className="flex items-center gap-2.5">
-          {/* Study Streak Badge (Duolingo Style) */}
+          {/* Study Streak Badge (Only when authenticated) */}
           {isAuthenticated && user && (
             <Link
               href="/dashboard"
@@ -130,7 +134,7 @@ export function Navbar() {
             </button>
           )}
 
-          {/* User Profile Dropdown or Login Buttons */}
+          {/* User Profile Dropdown (Logged in) OR Login / Register Buttons (Logged out) */}
           {isAuthenticated && user ? (
             <div className="relative">
               <button
@@ -205,12 +209,12 @@ export function Navbar() {
                 href="/login"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-bold text-foreground transition-all"
               >
-                <LogIn className="h-3.5 w-3.5" />
+                <LogIn className="h-3.5 w-3.5 text-sky-600" />
                 <span>Đăng Nhập</span>
               </Link>
               <Link
                 href="/register"
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-xs transition-all"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-xs transition-all"
               >
                 <UserPlus className="h-3.5 w-3.5" />
                 <span>Tạo Tài Khoản</span>
@@ -235,6 +239,8 @@ export function Navbar() {
           {navLinks.map((link) => {
             const Icon = link.icon;
             const isActive = pathname === link.href;
+            const isLocked = !link.isPublic && !isAuthenticated;
+
             return (
               <Link
                 key={link.href}
@@ -251,7 +257,11 @@ export function Navbar() {
                   <Icon className="h-4 w-4" />
                   <span>{link.label}</span>
                 </div>
-                {link.isSpecial && <Sparkles className="h-4 w-4 text-amber-500" />}
+                {isLocked ? (
+                  <Lock className="h-3.5 w-3.5 text-muted-foreground/60" />
+                ) : link.isSpecial ? (
+                  <Sparkles className="h-4 w-4 text-amber-500" />
+                ) : null}
               </Link>
             );
           })}
@@ -261,14 +271,14 @@ export function Navbar() {
               <Link
                 href="/login"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex-1 py-2 rounded-xl text-center border border-border font-bold text-xs"
+                className="flex-1 py-2.5 rounded-xl text-center border border-border font-bold text-xs"
               >
                 Đăng Nhập
               </Link>
               <Link
                 href="/register"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex-1 py-2 rounded-xl text-center bg-sky-600 text-white font-bold text-xs"
+                className="flex-1 py-2.5 rounded-xl text-center bg-sky-600 text-white font-bold text-xs"
               >
                 Tạo Tài Khoản
               </Link>

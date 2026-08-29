@@ -27,7 +27,6 @@ export function QuestionCard({
   hasSubmitted = false,
   onAskAI,
 }: QuestionCardProps) {
-  // Show answer feedback if in study mode and user has chosen, OR if submitted
   const showFeedback = !isExamMode ? selectedOption !== null : hasSubmitted;
   const isAnswered = selectedOption !== null;
 
@@ -76,7 +75,7 @@ export function QuestionCard({
             <span>TÌNH HUỐNG LÂM SÀNG (CLINICAL VIGNETTE)</span>
           </div>
           <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed font-normal italic">
-            "{question.clinicalVignette}"
+            &ldquo;{question.clinicalVignette}&rdquo;
           </p>
         </div>
       )}
@@ -99,23 +98,19 @@ export function QuestionCard({
           let labelStyle = "bg-muted text-muted-foreground";
 
           if (isSelected && !showFeedback) {
-            // Selected but feedback not revealed yet
             optionStyle =
               "border-2 border-sky-600 bg-sky-50/50 dark:bg-sky-950/40 text-foreground shadow-xs";
             labelStyle = "bg-sky-600 text-white font-bold";
           } else if (showFeedback) {
             if (isCorrectAnswer) {
-              // Correct Answer => GREEN BORDER
               optionStyle =
                 "border-2 border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/40 text-foreground shadow-xs";
               labelStyle = "bg-emerald-600 text-white font-bold";
             } else if (isSelected && !isCorrectAnswer) {
-              // User selected WRONG Answer => RED BORDER
               optionStyle =
                 "border-2 border-rose-500 bg-rose-50/70 dark:bg-rose-950/40 text-foreground shadow-xs";
               labelStyle = "bg-rose-600 text-white font-bold";
             } else {
-              // Other unselected options
               optionStyle = "border-border/60 opacity-60 bg-muted/20";
             }
           }
@@ -209,4 +204,3 @@ export function QuestionCard({
     </div>
   );
 }
-

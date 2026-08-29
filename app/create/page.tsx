@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { BloomLevel, MCQQuestion, FlashcardItem, DeckType } from "@/types";
 import { BLOOM_TAXONOMY_MAP, MEDICAL_SPECIALTIES } from "@/constants/bloom";
 import { BloomBadge } from "@/components/mcq/bloom-badge";
+import { AuthGuard } from "@/components/auth-guard";
 import {
   FilePlus,
   Layers,
@@ -75,9 +76,6 @@ export default function CreateStudioPage() {
 
   const bloomKeys = Object.keys(BLOOM_TAXONOMY_MAP) as BloomLevel[];
 
-  // -------------------------------------------------------------
-  // SAMPLE BATCH DATA PRESETS
-  // -------------------------------------------------------------
   const sampleMCQText = `[Vignette] Bệnh nhân nam 62 tuổi, tiền căn tăng huyết áp và đái tháo đường, nhập viện vì khó thở khi nằm, phù 2 chi dưới, ran ẩm 2 đáy phổi, T3 Gallop ở mỏm tim.
 Câu hỏi: Dấu hiệu thăm khám lâm sàng nào có độ đặc hiệu cao nhất cho chẩn đoán suy tim sung huyết ở bệnh nhân này?
 A. Tiếng T3 Gallop ở mỏm tim
@@ -96,26 +94,12 @@ C. Gliclazide và Glimepiride
 D. Sitagliptin và Vildagliptin
 Đáp án: A
 Bloom: REMEMBERING
-Giải thích: Empagliflozin (EMPEROR) và Dapagliflozin (DAPA-HF) là 2 thuốc SGLT2i trụ cột điều trị suy tim được FDA phê duyệt.
----
-[Vignette] Bệnh nhân nam 68 tuổi sau NMCT cấp dùng Enalapril, xét nghiệm Creatinine tăng từ 1.1 lên 1.8 mg/dL, Kali máu là 5.9 mEq/L.
-Câu hỏi: Cơ chế nào giải thích việc thuốc ACEi gây tăng Kali máu và tăng nhẹ Creatinine?
-A. Gây giãn tiểu động mạch đi cầu thận làm giảm áp lực lọc GFR và giảm bài tiết Aldosterone
-B. Gây co tiểu động mạch đến làm giảm lưu lượng máu thận
-C. Kích thích thụ thể AT1 gây co mạch thận diện rộng
-D. Ức chế men Na+/K+-ATPase tại màng đáy ống thận
-Đáp án: A
-Bloom: UNDERSTANDING
-Giải thích: ACEi ngăn tạo Angiotensin II -> giãn tiểu động mạch đi -> giảm GFR, đồng thời giảm Aldosterone gây giữ Kali.`;
+Giải thích: Empagliflozin (EMPEROR) và Dapagliflozin (DAPA-HF) là 2 thuốc SGLT2i trụ cột điều trị suy tim được FDA phê duyệt.`;
 
   const sampleFlashcardText = `Tam chứng Charcot trong nhiễm trùng đường mật | 1. Đau hạ sườn phải\n2. Sốt (kèm lạnh run)\n3. Vàng da - Vàng mắt | Đau - Sốt - Vàng | REMEMBERING
 Ngũ chứng Reynolds trong viêm đường mật hoại tử | Tam chứng Charcot + Tụt huyết áp (Shock) + Rối loạn tri giác | Shock + Tri giác | ANALYZING
-Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuyển thành NO -> kích hoạt Guanylyl cyclase -> tăng cGMP -> giãn hệ tĩnh mạch -> giảm tiền tải | Giảm tiền tải qua NO / cGMP | UNDERSTANDING
-Nghiệm pháp nhịn nước & tiêm Desmopressin (dDAVP) | Phân biệt Đái tháo nhạt trung ương (tăng áp lực thẩm thấu >50%) và do thận (không đáp ứng) | Tiêm Desmopressin | EVALUATING`;
+Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuyển thành NO -> kích hoạt Guanylyl cyclase -> tăng cGMP -> giãn hệ tĩnh mạch -> giảm tiền tải | Giảm tiền tải qua NO / cGMP | UNDERSTANDING`;
 
-  // -------------------------------------------------------------
-  // AI BATCH GENERATION SIMULATOR
-  // -------------------------------------------------------------
   const handleGenerateWithAI = () => {
     setIsAiGenerating(true);
 
@@ -197,9 +181,6 @@ Nghiệm pháp nhịn nước & tiêm Desmopressin (dDAVP) | Phân biệt Đái 
     }, 1200);
   };
 
-  // -------------------------------------------------------------
-  // PARSER LOGIC
-  // -------------------------------------------------------------
   const parseBatchContent = (raw: string, type: "MCQ" | "FLASHCARD", format: "TEXT" | "JSON") => {
     setParseErrors([]);
 
@@ -295,7 +276,6 @@ Nghiệm pháp nhịn nước & tiêm Desmopressin (dDAVP) | Phân biệt Đái 
         setParseErrors(errors);
       }
     } else {
-      // FLASHCARD PARSER
       if (format === "JSON") {
         try {
           const parsed = JSON.parse(raw);
@@ -376,493 +356,133 @@ Nghiệm pháp nhịn nước & tiêm Desmopressin (dDAVP) | Phân biệt Đái 
   };
 
   return (
-    <div className="container mx-auto max-w-6xl px-4 sm:px-6 py-8 sm:py-10 space-y-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-5">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold text-xs">
-            <Sparkles className="h-4 w-4" />
-            <span>CREATOR STUDIO & AI BATCH IMPORTER CHUẨN BLOOM 2026</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-foreground">
-            Biên Soạn & Nạp Hàng Loạt Bằng AI
-          </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Sử dụng AI tự động sinh câu hỏi lâm sàng theo chủ đề, hoặc dán tài liệu từ Word/PDF và phân loại chuẩn 6 bậc Bloom
-          </p>
-        </div>
-
-        {savedSuccess && (
-          <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 text-xs font-bold animate-in fade-in shadow-xs">
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            <span>Đã lưu thành công bộ đề!</span>
-            {savedDeckId && (
-              <Link
-                href={`/quiz/${savedDeckId}`}
-                className="underline ml-1 text-emerald-900 dark:text-emerald-200"
-              >
-                Làm bài ngay →
-              </Link>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Tabs Switcher */}
-      <div className="flex items-center gap-2 border-b border-border overflow-x-auto">
-        <button
-          type="button"
-          onClick={() => setActiveTab("AI_GEN")}
-          className={cn(
-            "flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 whitespace-nowrap transition-all",
-            activeTab === "AI_GEN"
-              ? "border-indigo-600 text-indigo-600 dark:text-indigo-400"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <Bot className="h-4 w-4" />
-          <span>🤖 AI Tự Động Sinh Đề</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("BATCH")}
-          className={cn(
-            "flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 whitespace-nowrap transition-all",
-            activeTab === "BATCH"
-              ? "border-sky-600 text-sky-600 dark:text-sky-400"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <UploadCloud className="h-4 w-4" />
-          <span>⚡ Dán Hàng Loạt (Text / JSON)</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("MCQ")}
-          className={cn(
-            "flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 whitespace-nowrap transition-all",
-            activeTab === "MCQ"
-              ? "border-sky-600 text-sky-600 dark:text-sky-400"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <FilePlus className="h-4 w-4" />
-          <span>Tạo Từng Câu Thủ Công</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("FLASHCARD")}
-          className={cn(
-            "flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 whitespace-nowrap transition-all",
-            activeTab === "FLASHCARD"
-              ? "border-purple-600 text-purple-600 dark:text-purple-400"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <Layers className="h-4 w-4" />
-          <span>Tạo Thẻ Flashcard 3D</span>
-        </button>
-      </div>
-
-      {/* ============================================================= */}
-      {/* TAB 1: AI GENERATOR (TỰ ĐỘNG SINH ĐỀ BẰNG AI) */}
-      {/* ============================================================= */}
-      {activeTab === "AI_GEN" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="p-6 sm:p-7 rounded-3xl border border-border bg-card shadow-sm space-y-5">
-              <div className="flex items-center gap-2.5 text-indigo-600 dark:text-indigo-400 font-bold text-sm">
-                <Wand2 className="h-5 w-5" />
-                <span>NHẬP YÊU CẦU ĐỂ AI TỰ ĐỘNG THIẾT KẾ CÂU HỎI BLOOM</span>
-              </div>
-
-              {/* Topic Input */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Chủ Đề Ca Bệnh / Thuốc / Bệnh Lý Cần Tạo *
-                </label>
-                <input
-                  type="text"
-                  value={aiTopic}
-                  onChange={(e) => setAiTopic(e.target.value)}
-                  placeholder="VD: Cơn Bão Giáp (Thyroid Storm), Viêm Tụy Cấp, Thuốc Kháng Đông NOAC..."
-                  className="w-full px-4 py-3 rounded-2xl border border-border bg-background text-sm font-semibold text-foreground focus:ring-2 focus:ring-indigo-500/50 outline-none"
-                />
-              </div>
-
-              {/* Specialty & Question Count */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-muted-foreground">
-                    Chuyên Khoa
-                  </label>
-                  <select
-                    value={aiSpecialty}
-                    onChange={(e) => setAiSpecialty(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-xs font-medium text-foreground outline-none"
-                  >
-                    {MEDICAL_SPECIALTIES.filter((s) => s !== "Tất cả chuyên khoa").map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-muted-foreground">
-                    Số Lượng Câu Hỏi
-                  </label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[2, 4, 6, 10].map((num) => (
-                      <button
-                        key={num}
-                        type="button"
-                        onClick={() => setAiQuestionCount(num)}
-                        className={cn(
-                          "py-2 rounded-xl border text-xs font-bold transition-all",
-                          aiQuestionCount === num
-                            ? "bg-indigo-600 text-white border-indigo-600"
-                            : "border-border text-muted-foreground hover:bg-muted"
-                        )}
-                      >
-                        {num} câu
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Bloom Level Distribution Preference */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-muted-foreground">
-                  Trọng Tâm Phân Phối Thang Đo Bloom
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setAiBloomFocus("ALL")}
-                    className={cn(
-                      "p-3 rounded-2xl border text-left font-semibold transition-all",
-                      aiBloomFocus === "ALL"
-                        ? "border-2 border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 text-foreground"
-                        : "border-border bg-background text-muted-foreground"
-                    )}
-                  >
-                    <div className="font-bold text-indigo-600">Trải Đều 6 Bậc Bloom</div>
-                    <div className="text-[11px] text-muted-foreground">Từ Nhớ, Hiểu đến Phân tích ca bệnh</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setAiBloomFocus("CLINICAL")}
-                    className={cn(
-                      "p-3 rounded-2xl border text-left font-semibold transition-all",
-                      aiBloomFocus === "CLINICAL"
-                        ? "border-2 border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 text-foreground"
-                        : "border-border bg-background text-muted-foreground"
-                    )}
-                  >
-                    <div className="font-bold text-indigo-600">Tập Trung Ca Lâm Sàng (Cấp 4-6)</div>
-                    <div className="text-[11px] text-muted-foreground">Biện luận chẩn đoán phân biệt & xử trí cấp cứu</div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Generate Action Button */}
-              <button
-                type="button"
-                onClick={handleGenerateWithAI}
-                disabled={isAiGenerating || !aiTopic.trim()}
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-sm shadow-md shadow-indigo-600/25 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
-              >
-                {isAiGenerating ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span>MediAI đang tra cứu bệnh án & thiết kế ca lâm sàng...</span>
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="h-4 w-4" />
-                    <span>Tự Động Sinh Bộ Câu Hỏi & Chuyển Sang Xem Trước</span>
-                  </>
-                )}
-              </button>
+    <AuthGuard
+      featureTitle="Creator Studio & AI Batch Importer"
+      featureDescription="Vui lòng đăng nhập để sử dụng tính năng AI tự động sinh đề thi lâm sàng và biên soạn ngân hàng câu hỏi chuẩn Bloom."
+    >
+      <div className="container mx-auto max-w-6xl px-4 sm:px-6 py-8 sm:py-10 space-y-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-5">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold text-xs">
+              <Sparkles className="h-4 w-4" />
+              <span>CREATOR STUDIO & AI BATCH IMPORTER CHUẨN BLOOM 2026</span>
             </div>
+            <h1 className="text-2xl sm:text-3xl font-black text-foreground">
+              Biên Soạn & Nạp Hàng Loạt Bằng AI
+            </h1>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Sử dụng AI tự động sinh câu hỏi lâm sàng theo chủ đề, hoặc dán tài liệu từ Word/PDF và phân loại chuẩn 6 bậc Bloom
+            </p>
           </div>
 
-          {/* Right Info Box */}
-          <div className="space-y-4">
-            <div className="p-6 rounded-3xl border border-border bg-card shadow-sm space-y-4">
-              <div className="flex items-center gap-2 text-foreground font-bold text-sm">
-                <BrainCircuit className="h-4 w-4 text-indigo-600" />
-                <span>CHUẨN HÓA Y KHOA BỞI MEDIAI</span>
-              </div>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Mỗi câu hỏi do AI tạo ra đều có cấu trúc chuẩn mực:
-              </p>
-              <ul className="space-y-2 text-xs text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                  <span><strong>Vignette:</strong> Bệnh sử ca bệnh lâm sàng chân thực.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                  <span><strong>4 Phương án:</strong> 1 đáp án đúng và 3 phương án nhiễu có tính học thuật cao.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                  <span><strong>Bloom Tag:</strong> Gắn nhãn 1 trong 6 bậc Bloom kèm giải thích cơ chế bệnh học.</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ============================================================= */}
-      {/* TAB 2: BATCH IMPORTER (DÁN HÀNG LOẠT VĂN BẢN / JSON) */}
-      {/* ============================================================= */}
-      {activeTab === "BATCH" && (
-        <div className="space-y-8">
-          <div className="p-5 rounded-3xl border border-border bg-card shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Loại Dữ Liệu:
-                </span>
-                <div className="flex items-center gap-1.5 bg-muted p-1 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBatchType("MCQ");
-                      parseBatchContent(batchRawInput, "MCQ", batchFormat);
-                    }}
-                    className={cn(
-                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                      batchType === "MCQ"
-                        ? "bg-sky-600 text-white shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Trắc Nghiệm MCQ
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBatchType("FLASHCARD");
-                      parseBatchContent(batchRawInput, "FLASHCARD", batchFormat);
-                    }}
-                    className={cn(
-                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                      batchType === "FLASHCARD"
-                        ? "bg-purple-600 text-white shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Thẻ Flashcard 3D
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Định Dạng:
-                </span>
-                <div className="flex items-center gap-1.5 bg-muted p-1 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBatchFormat("TEXT");
-                      parseBatchContent(batchRawInput, batchType, "TEXT");
-                    }}
-                    className={cn(
-                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                      batchFormat === "TEXT"
-                        ? "bg-background text-foreground shadow-xs"
-                        : "text-muted-foreground"
-                    )}
-                  >
-                    Văn Bản Tự Do
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBatchFormat("JSON");
-                      parseBatchContent(batchRawInput, batchType, "JSON");
-                    }}
-                    className={cn(
-                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                      batchFormat === "JSON"
-                        ? "bg-background text-foreground shadow-xs"
-                        : "text-muted-foreground"
-                    )}
-                  >
-                    Cấu Trúc JSON
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const sample = batchType === "MCQ" ? sampleMCQText : sampleFlashcardText;
-                  setBatchFormat("TEXT");
-                  setBatchRawInput(sample);
-                  parseBatchContent(sample, batchType, "TEXT");
-                }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-bold hover:bg-indigo-100 transition-all"
-              >
-                <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
-                <span>Nạp Dữ Liệu Mẫu Y Khoa</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <FileText className="h-4 w-4 text-sky-600" />
-                  <span>Dán nội dung từ tài liệu (Word, PDF, Notepad):</span>
-                </label>
-                <span className="text-[11px] text-muted-foreground">
-                  Phân cách mỗi câu bằng <code>---</code>
-                </span>
-              </div>
-
-              <textarea
-                rows={16}
-                placeholder={
-                  batchType === "MCQ"
-                    ? `[Vignette] Bệnh nhân nam 60 tuổi...\nCâu hỏi: Chẩn đoán nào phù hợp nhất?\nA. Suy tim cấp\nB. Nhồi máu cơ tim\nC. Thuyên tắc phổi\nD. Viêm phổi\nĐáp án: A\nBloom: ANALYZING\nGiải thích: Tiếng T3 Gallop và ran ẩm...`
-                    : `Mặt trước | Mặt sau | Gợi ý lâm sàng | Cấp Bloom\nTam chứng Charcot | 1. Đau HSP, 2. Sốt, 3. Vàng da | Đau-Sốt-Vàng | REMEMBERING`
-                }
-                value={batchRawInput}
-                onChange={(e) => {
-                  setBatchRawInput(e.target.value);
-                  parseBatchContent(e.target.value, batchType, batchFormat);
-                }}
-                className="w-full p-4 rounded-3xl border border-border bg-card text-xs sm:text-sm font-mono text-foreground focus:ring-2 focus:ring-indigo-500/50 outline-none leading-relaxed shadow-xs"
-              />
-
-              {parseErrors.length > 0 && (
-                <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 text-rose-700 dark:text-rose-300 text-xs space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <AlertTriangle className="h-4 w-4" />
-                    <span>Lỗi định dạng:</span>
-                  </div>
-                  {parseErrors.map((err, idx) => (
-                    <div key={idx} className="pl-5 text-[11px]">
-                      • {err}
-                    </div>
-                  ))}
-                </div>
+          {savedSuccess && (
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 text-xs font-bold animate-in fade-in shadow-xs">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <span>Đã lưu thành công bộ đề!</span>
+              {savedDeckId && (
+                <Link
+                  href={`/quiz/${savedDeckId}`}
+                  className="underline ml-1 text-emerald-900 dark:text-emerald-200"
+                >
+                  Làm bài ngay →
+                </Link>
               )}
             </div>
+          )}
+        </div>
 
-            <div className="space-y-3 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <ListChecks className="h-4 w-4 text-emerald-600" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-foreground">
-                      Xem Trước Dữ Liệu Nhận Diện:
-                    </span>
-                  </div>
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold">
-                    {batchType === "MCQ" ? parsedMCQs.length : parsedFlashcards.length} {batchType === "MCQ" ? "câu hỏi" : "thẻ"} hợp lệ
-                  </span>
+        {/* Tabs Switcher */}
+        <div className="flex items-center gap-2 border-b border-border overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setActiveTab("AI_GEN")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 whitespace-nowrap transition-all",
+              activeTab === "AI_GEN"
+                ? "border-indigo-600 text-indigo-600 dark:text-indigo-400"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Bot className="h-4 w-4" />
+            <span>🤖 AI Tự Động Sinh Đề</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("BATCH")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 whitespace-nowrap transition-all",
+              activeTab === "BATCH"
+                ? "border-sky-600 text-sky-600 dark:text-sky-400"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <UploadCloud className="h-4 w-4" />
+            <span>⚡ Dán Hàng Loạt (Text / JSON)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("MCQ")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 whitespace-nowrap transition-all",
+              activeTab === "MCQ"
+                ? "border-sky-600 text-sky-600 dark:text-sky-400"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <FilePlus className="h-4 w-4" />
+            <span>Tạo Từng Câu Thủ Công</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("FLASHCARD")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 whitespace-nowrap transition-all",
+              activeTab === "FLASHCARD"
+                ? "border-purple-600 text-purple-600 dark:text-purple-400"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Layers className="h-4 w-4" />
+            <span>Tạo Thẻ Flashcard 3D</span>
+          </button>
+        </div>
+
+        {/* TAB 1: AI GENERATOR */}
+        {activeTab === "AI_GEN" && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-6">
+              <div className="p-6 sm:p-7 rounded-3xl border border-border bg-card shadow-sm space-y-5">
+                <div className="flex items-center gap-2.5 text-indigo-600 dark:text-indigo-400 font-bold text-sm">
+                  <Wand2 className="h-5 w-5" />
+                  <span>NHẬP YÊU CẦU ĐỂ AI TỰ ĐỘNG THIẾT KẾ CÂU HỎI BLOOM</span>
                 </div>
 
-                <div className="h-[360px] overflow-y-auto space-y-3 p-4 rounded-3xl border border-border bg-muted/20">
-                  {batchType === "MCQ" && parsedMCQs.length === 0 && (
-                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-xs text-center p-6">
-                      <UploadCloud className="h-8 w-8 text-muted-foreground/50 mb-2" />
-                      <span>Chưa có câu hỏi nào được nhận diện. Hãy dán nội dung ở khung bên trái hoặc sử dụng tab "AI Tự Động Sinh Đề".</span>
-                    </div>
-                  )}
-
-                  {batchType === "MCQ" &&
-                    parsedMCQs.map((q, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3.5 rounded-2xl border border-border bg-card space-y-2 text-xs shadow-xs"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-bold text-sky-600">Câu #{idx + 1}</span>
-                          <BloomBadge level={q.bloomLevel} size="sm" />
-                        </div>
-                        {q.clinicalVignette && (
-                          <p className="text-[11px] text-muted-foreground italic line-clamp-1">
-                            "{q.clinicalVignette}"
-                          </p>
-                        )}
-                        <p className="font-semibold text-foreground line-clamp-2">
-                          {q.questionText}
-                        </p>
-                        <div className="grid grid-cols-2 gap-1 pt-1 text-[11px]">
-                          {q.options.map((opt, oIdx) => (
-                            <div
-                              key={oIdx}
-                              className={cn(
-                                "px-2 py-1 rounded-lg truncate",
-                                oIdx === q.correctIndex
-                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold"
-                                  : "text-muted-foreground"
-                              )}
-                            >
-                              {["A", "B", "C", "D"][oIdx]}. {opt}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-
-                  {batchType === "FLASHCARD" &&
-                    parsedFlashcards.map((fc, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3.5 rounded-2xl border border-border bg-card space-y-1.5 text-xs shadow-xs"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-bold text-purple-600">Thẻ #{idx + 1}</span>
-                          <BloomBadge level={fc.bloomLevel} size="sm" />
-                        </div>
-                        <div className="font-bold text-foreground">{fc.front}</div>
-                        <div className="text-muted-foreground text-[11px] whitespace-pre-line line-clamp-2">
-                          {fc.back}
-                        </div>
-                      </div>
-                    ))}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Chủ Đề Ca Bệnh / Thuốc / Bệnh Lý Cần Tạo *
+                  </label>
+                  <input
+                    type="text"
+                    value={aiTopic}
+                    onChange={(e) => setAiTopic(e.target.value)}
+                    placeholder="VD: Cơn Bão Giáp (Thyroid Storm), Viêm Tụy Cấp, Thuốc Kháng Đông NOAC..."
+                    className="w-full px-4 py-3 rounded-2xl border border-border bg-background text-sm font-semibold text-foreground focus:ring-2 focus:ring-indigo-500/50 outline-none"
+                  />
                 </div>
-              </div>
 
-              <div className="p-4 rounded-2xl border border-border bg-card space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground mb-1">
-                      Tên Bộ Đề Đích
-                    </label>
-                    <input
-                      type="text"
-                      value={batchTargetDeckTitle}
-                      onChange={(e) => setBatchTargetDeckTitle(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-border bg-background text-xs font-semibold text-foreground outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground mb-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-muted-foreground">
                       Chuyên Khoa
                     </label>
                     <select
-                      value={targetSpecialty}
-                      onChange={(e) => setTargetSpecialty(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-border bg-background text-xs font-medium text-foreground outline-none"
+                      value={aiSpecialty}
+                      onChange={(e) => setAiSpecialty(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-xs font-medium text-foreground outline-none"
                     >
                       {MEDICAL_SPECIALTIES.filter((s) => s !== "Tất cả chuyên khoa").map((s) => (
                         <option key={s} value={s}>
@@ -871,289 +491,641 @@ Nghiệm pháp nhịn nước & tiêm Desmopressin (dDAVP) | Phân biệt Đái 
                       ))}
                     </select>
                   </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-muted-foreground">
+                      Số Lượng Câu Hỏi
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[2, 4, 6, 10].map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => setAiQuestionCount(num)}
+                          className={cn(
+                            "py-2 rounded-xl border text-xs font-bold transition-all",
+                            aiQuestionCount === num
+                              ? "bg-indigo-600 text-white border-indigo-600"
+                              : "border-border text-muted-foreground hover:bg-muted"
+                          )}
+                        >
+                          {num} câu
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-muted-foreground">
+                    Trọng Tâm Phân Phối Thang Đo Bloom
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setAiBloomFocus("ALL")}
+                      className={cn(
+                        "p-3 rounded-2xl border text-left font-semibold transition-all",
+                        aiBloomFocus === "ALL"
+                          ? "border-2 border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 text-foreground"
+                          : "border-border bg-background text-muted-foreground"
+                      )}
+                    >
+                      <div className="font-bold text-indigo-600">Trải Đều 6 Bậc Bloom</div>
+                      <div className="text-[11px] text-muted-foreground">Từ Nhớ, Hiểu đến Phân tích ca bệnh</div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setAiBloomFocus("CLINICAL")}
+                      className={cn(
+                        "p-3 rounded-2xl border text-left font-semibold transition-all",
+                        aiBloomFocus === "CLINICAL"
+                          ? "border-2 border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 text-foreground"
+                          : "border-border bg-background text-muted-foreground"
+                      )}
+                    >
+                      <div className="font-bold text-indigo-600">Tập Trung Ca Lâm Sàng (Cấp 4-6)</div>
+                      <div className="text-[11px] text-muted-foreground">Biện luận chẩn đoán phân biệt & xử trí cấp cứu</div>
+                    </button>
+                  </div>
                 </div>
 
                 <button
                   type="button"
-                  onClick={handleSaveToLocalStorage}
-                  disabled={
-                    (batchType === "MCQ" && parsedMCQs.length === 0) ||
-                    (batchType === "FLASHCARD" && parsedFlashcards.length === 0)
-                  }
-                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-700 hover:to-sky-700 disabled:opacity-50 text-white font-bold text-sm shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                  onClick={handleGenerateWithAI}
+                  disabled={isAiGenerating || !aiTopic.trim()}
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-sm shadow-md shadow-indigo-600/25 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
                 >
-                  <Save className="h-4 w-4" />
-                  <span>
-                    Lưu Toàn Bộ ({batchType === "MCQ" ? parsedMCQs.length : parsedFlashcards.length} Mục) Vào Bộ Đề & Luyện Ngay
-                  </span>
+                  {isAiGenerating ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>MediAI đang tra cứu bệnh án & thiết kế ca lâm sàng...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="h-4 w-4" />
+                      <span>Tự Động Sinh Bộ Câu Hỏi & Chuyển Sang Xem Trước</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
+
+            <div className="space-y-4">
+              <div className="p-6 rounded-3xl border border-border bg-card shadow-sm space-y-4">
+                <div className="flex items-center gap-2 text-foreground font-bold text-sm">
+                  <BrainCircuit className="h-4 w-4 text-indigo-600" />
+                  <span>CHUẨN HÓA Y KHOA BỞI MEDIAI</span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Mỗi câu hỏi do AI tạo ra đều có cấu trúc chuẩn mực:
+                </p>
+                <ul className="space-y-2 text-xs text-muted-foreground">
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                    <span><strong>Vignette:</strong> Bệnh sử ca bệnh lâm sàng chân thực.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                    <span><strong>4 Phương án:</strong> 1 đáp án đúng và 3 phương án nhiễu có tính học thuật cao.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                    <span><strong>Bloom Tag:</strong> Gắn nhãn 1 trong 6 bậc Bloom kèm giải thích cơ chế bệnh học.</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ============================================================= */}
-      {/* TAB 3: MANUAL SINGLE MCQ FORM */}
-      {/* ============================================================= */}
-      {activeTab === "MCQ" && (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const singleQuestion: MCQQuestion = {
-              id: `mcq_single_${Date.now()}`,
-              clinicalVignette: vignette,
-              questionText,
-              options,
-              correctIndex,
-              bloomLevel,
-              difficulty,
-              explanation,
-            };
-            setParsedMCQs([singleQuestion]);
-            setBatchTargetDeckTitle(`Đề Tự Tạo: ${questionText.slice(0, 30)}...`);
-            handleSaveToLocalStorage();
-          }}
-          className="grid grid-cols-1 lg:grid-cols-3 gap-8"
-        >
-          <div className="lg:col-span-2 space-y-5">
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Tình Huống Ca Bệnh Lâm Sàng (Clinical Vignette - Tùy chọn)
-              </label>
-              <textarea
-                rows={3}
-                placeholder="VD: Bệnh nhân nam 62 tuổi, tiền căn tăng huyết áp và ĐTĐ type 2..."
-                value={vignette}
-                onChange={(e) => setVignette(e.target.value)}
-                className="w-full p-4 rounded-2xl border border-border bg-card text-xs sm:text-sm text-foreground focus:ring-2 focus:ring-sky-500/50 outline-none italic"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Nội Dung Câu Hỏi Chính *
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="VD: Dấu hiệu thăm khám lâm sàng nào có độ đặc hiệu cao nhất cho chẩn đoán suy tim?"
-                value={questionText}
-                onChange={(e) => setQuestionText(e.target.value)}
-                className="w-full px-4 py-3 rounded-2xl border border-border bg-card text-xs sm:text-sm text-foreground font-semibold focus:ring-2 focus:ring-sky-500/50 outline-none"
-              />
-            </div>
-
-            <div className="space-y-3 pt-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Các Phương Án Lựa Chọn & Chọn Đáp Án Đúng
-              </label>
-              {options.map((opt, idx) => {
-                const label = ["A", "B", "C", "D"][idx];
-                const isCorrect = correctIndex === idx;
-                return (
-                  <div
-                    key={idx}
-                    className={cn(
-                      "flex items-center gap-3 p-2.5 rounded-2xl border transition-all",
-                      isCorrect
-                        ? "border-2 border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30"
-                        : "border-border bg-card"
-                    )}
-                  >
+        {/* TAB 2: BATCH IMPORTER */}
+        {activeTab === "BATCH" && (
+          <div className="space-y-8">
+            <div className="p-5 rounded-3xl border border-border bg-card shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Loại Dữ Liệu:
+                  </span>
+                  <div className="flex items-center gap-1.5 bg-muted p-1 rounded-xl">
                     <button
                       type="button"
-                      onClick={() => setCorrectIndex(idx)}
-                      className={cn(
-                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-xs font-bold transition-colors",
-                        isCorrect
-                          ? "bg-emerald-600 text-white shadow-xs"
-                          : "bg-muted text-muted-foreground hover:bg-muted/80"
-                      )}
-                    >
-                      {label}
-                    </button>
-                    <input
-                      type="text"
-                      required
-                      value={opt}
-                      onChange={(e) => {
-                        const newOpts = [...options];
-                        newOpts[idx] = e.target.value;
-                        setOptions(newOpts);
+                      onClick={() => {
+                        setBatchType("MCQ");
+                        parseBatchContent(batchRawInput, "MCQ", batchFormat);
                       }}
-                      className="flex-1 bg-transparent text-xs sm:text-sm text-foreground outline-none font-medium"
-                    />
-                    {isCorrect && (
-                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950">
-                        Đáp án ĐÚNG
-                      </span>
-                    )}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                        batchType === "MCQ"
+                          ? "bg-sky-600 text-white shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Trắc Nghiệm MCQ
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBatchType("FLASHCARD");
+                        parseBatchContent(batchRawInput, "FLASHCARD", batchFormat);
+                      }}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                        batchType === "FLASHCARD"
+                          ? "bg-purple-600 text-white shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Thẻ Flashcard 3D
+                    </button>
                   </div>
-                );
-              })}
-            </div>
+                </div>
 
-            <div className="space-y-1.5 pt-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Lời Giải Thích Bệnh Học & Cơ Chế Lâm Sàng Chi Tiết *
-              </label>
-              <textarea
-                rows={4}
-                required
-                placeholder="Giải thích cơ chế bệnh sinh chi tiết..."
-                value={explanation}
-                onChange={(e) => setExplanation(e.target.value)}
-                className="w-full p-4 rounded-2xl border border-border bg-card text-xs sm:text-sm text-foreground focus:ring-2 focus:ring-sky-500/50 outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <div className="p-5 rounded-3xl border border-border bg-card shadow-sm space-y-4">
-              <div className="flex items-center gap-2 text-foreground font-bold text-sm">
-                <BrainCircuit className="h-4 w-4 text-indigo-600" />
-                <span>GẮN THANG ĐO TƯ DUY BLOOM</span>
-              </div>
-              <div className="space-y-2">
-                {bloomKeys.map((key) => {
-                  const info = BLOOM_TAXONOMY_MAP[key];
-                  const isSelected = bloomLevel === key;
-                  return (
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Định Dạng:
+                  </span>
+                  <div className="flex items-center gap-1.5 bg-muted p-1 rounded-xl">
                     <button
-                      key={key}
                       type="button"
-                      onClick={() => setBloomLevel(key)}
+                      onClick={() => {
+                        setBatchFormat("TEXT");
+                        parseBatchContent(batchRawInput, batchType, "TEXT");
+                      }}
                       className={cn(
-                        "w-full text-left p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all",
-                        isSelected
-                          ? cn("border-2 shadow-xs", info.borderColor, info.bgLight, info.colorClass)
-                          : "border-border/60 hover:bg-muted text-muted-foreground"
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                        batchFormat === "TEXT"
+                          ? "bg-background text-foreground shadow-xs"
+                          : "text-muted-foreground"
                       )}
                     >
-                      <span>{info.vietnameseName}</span>
-                      {isSelected && <CheckCircle2 className="h-4 w-4" />}
+                      Văn Bản Tự Do
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBatchFormat("JSON");
+                        parseBatchContent(batchRawInput, batchType, "JSON");
+                      }}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                        batchFormat === "JSON"
+                          ? "bg-background text-foreground shadow-xs"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      Cấu Trúc JSON
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const sample = batchType === "MCQ" ? sampleMCQText : sampleFlashcardText;
+                    setBatchFormat("TEXT");
+                    setBatchRawInput(sample);
+                    parseBatchContent(sample, batchType, "TEXT");
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-bold hover:bg-indigo-100 transition-all"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>Nạp Dữ Liệu Mẫu Y Khoa</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <FileText className="h-4 w-4 text-sky-600" />
+                    <span>Dán nội dung từ tài liệu (Word, PDF, Notepad):</span>
+                  </label>
+                  <span className="text-[11px] text-muted-foreground">
+                    Phân cách mỗi câu bằng <code>---</code>
+                  </span>
+                </div>
+
+                <textarea
+                  rows={16}
+                  placeholder={
+                    batchType === "MCQ"
+                      ? `[Vignette] Bệnh nhân nam 60 tuổi...\nCâu hỏi: Chẩn đoán nào phù hợp nhất?\nA. Suy tim cấp\nB. Nhồi máu cơ tim\nC. Thuyên tắc phổi\nD. Viêm phổi\nĐáp án: A\nBloom: ANALYZING\nGiải thích: Tiếng T3 Gallop và ran ẩm...`
+                      : `Mặt trước | Mặt sau | Gợi ý lâm sàng | Cấp Bloom\nTam chứng Charcot | 1. Đau HSP, 2. Sốt, 3. Vàng da | Đau-Sốt-Vàng | REMEMBERING`
+                  }
+                  value={batchRawInput}
+                  onChange={(e) => {
+                    setBatchRawInput(e.target.value);
+                    parseBatchContent(e.target.value, batchType, batchFormat);
+                  }}
+                  className="w-full p-4 rounded-3xl border border-border bg-card text-xs sm:text-sm font-mono text-foreground focus:ring-2 focus:ring-indigo-500/50 outline-none leading-relaxed shadow-xs"
+                />
+
+                {parseErrors.length > 0 && (
+                  <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 text-rose-700 dark:text-rose-300 text-xs space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <AlertTriangle className="h-4 w-4" />
+                      <span>Lỗi định dạng:</span>
+                    </div>
+                    {parseErrors.map((err, idx) => (
+                      <div key={idx} className="pl-5 text-[11px]">
+                        • {err}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <ListChecks className="h-4 w-4 text-emerald-600" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-foreground">
+                        Xem Trước Dữ Liệu Nhận Diện:
+                      </span>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold">
+                      {batchType === "MCQ" ? parsedMCQs.length : parsedFlashcards.length} {batchType === "MCQ" ? "câu hỏi" : "thẻ"} hợp lệ
+                    </span>
+                  </div>
+
+                  <div className="h-[360px] overflow-y-auto space-y-3 p-4 rounded-3xl border border-border bg-muted/20">
+                    {batchType === "MCQ" && parsedMCQs.length === 0 && (
+                      <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-xs text-center p-6">
+                        <UploadCloud className="h-8 w-8 text-muted-foreground/50 mb-2" />
+                        <span>Chưa có câu hỏi nào được nhận diện. Hãy dán nội dung ở khung bên trái hoặc sử dụng tab "AI Tự Động Sinh Đề".</span>
+                      </div>
+                    )}
+
+                    {batchType === "MCQ" &&
+                      parsedMCQs.map((q, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3.5 rounded-2xl border border-border bg-card space-y-2 text-xs shadow-xs"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-sky-600">Câu #{idx + 1}</span>
+                            <BloomBadge level={q.bloomLevel} size="sm" />
+                          </div>
+                          {q.clinicalVignette && (
+                            <p className="text-[11px] text-muted-foreground italic line-clamp-1">
+                              "{q.clinicalVignette}"
+                            </p>
+                          )}
+                          <p className="font-semibold text-foreground line-clamp-2">
+                            {q.questionText}
+                          </p>
+                          <div className="grid grid-cols-2 gap-1 pt-1 text-[11px]">
+                            {q.options.map((opt, oIdx) => (
+                              <div
+                                key={oIdx}
+                                className={cn(
+                                  "px-2 py-1 rounded-lg truncate",
+                                  oIdx === q.correctIndex
+                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold"
+                                  : "text-muted-foreground"
+                                )}
+                              >
+                                {["A", "B", "C", "D"][oIdx]}. {opt}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+
+                    {batchType === "FLASHCARD" &&
+                      parsedFlashcards.map((fc, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3.5 rounded-2xl border border-border bg-card space-y-1.5 text-xs shadow-xs"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-purple-600">Thẻ #{idx + 1}</span>
+                            <BloomBadge level={fc.bloomLevel} size="sm" />
+                          </div>
+                          <div className="font-bold text-foreground">{fc.front}</div>
+                          <div className="text-muted-foreground text-[11px] whitespace-pre-line line-clamp-2">
+                            {fc.back}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl border border-border bg-card space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1">
+                        Tên Bộ Đề Đích
+                      </label>
+                      <input
+                        type="text"
+                        value={batchTargetDeckTitle}
+                        onChange={(e) => setBatchTargetDeckTitle(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-border bg-background text-xs font-semibold text-foreground outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1">
+                        Chuyên Khoa
+                      </label>
+                      <select
+                        value={targetSpecialty}
+                        onChange={(e) => setTargetSpecialty(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-border bg-background text-xs font-medium text-foreground outline-none"
+                      >
+                        {MEDICAL_SPECIALTIES.filter((s) => s !== "Tất cả chuyên khoa").map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveToLocalStorage}
+                    disabled={
+                      (batchType === "MCQ" && parsedMCQs.length === 0) ||
+                      (batchType === "FLASHCARD" && parsedFlashcards.length === 0)
+                    }
+                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-700 hover:to-sky-700 disabled:opacity-50 text-white font-bold text-sm shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                  >
+                    <Save className="h-4 w-4" />
+                    <span>
+                      Lưu Toàn Bộ ({batchType === "MCQ" ? parsedMCQs.length : parsedFlashcards.length} Mục) Vào Bộ Đề & Luyện Ngay
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: MANUAL SINGLE MCQ FORM */}
+        {activeTab === "MCQ" && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const singleQuestion: MCQQuestion = {
+                id: `mcq_single_${Date.now()}`,
+                clinicalVignette: vignette,
+                questionText,
+                options,
+                correctIndex,
+                bloomLevel,
+                difficulty,
+                explanation,
+              };
+              setParsedMCQs([singleQuestion]);
+              setBatchTargetDeckTitle(`Đề Tự Tạo: ${questionText.slice(0, 30)}...`);
+              handleSaveToLocalStorage();
+            }}
+            className="grid grid-cols-1 lg:grid-cols-3 gap-8"
+          >
+            <div className="lg:col-span-2 space-y-5">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Tình Huống Ca Bệnh Lâm Sàng (Clinical Vignette - Tùy chọn)
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="VD: Bệnh nhân nam 62 tuổi, tiền căn tăng huyết áp và ĐTĐ type 2..."
+                  value={vignette}
+                  onChange={(e) => setVignette(e.target.value)}
+                  className="w-full p-4 rounded-2xl border border-border bg-card text-xs sm:text-sm text-foreground focus:ring-2 focus:ring-sky-500/50 outline-none italic"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Nội Dung Câu Hỏi Chính *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="VD: Dấu hiệu thăm khám lâm sàng nào có độ đặc hiệu cao nhất cho chẩn đoán suy tim?"
+                  value={questionText}
+                  onChange={(e) => setQuestionText(e.target.value)}
+                  className="w-full px-4 py-3 rounded-2xl border border-border bg-card text-xs sm:text-sm text-foreground font-semibold focus:ring-2 focus:ring-sky-500/50 outline-none"
+                />
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Các Phương Án Lựa Chọn & Chọn Đáp Án Đúng
+                </label>
+                {options.map((opt, idx) => {
+                  const label = ["A", "B", "C", "D"][idx];
+                  const isCorrect = correctIndex === idx;
+                  return (
+                    <div
+                      key={idx}
+                      className={cn(
+                        "flex items-center gap-3 p-2.5 rounded-2xl border transition-all",
+                        isCorrect
+                          ? "border-2 border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30"
+                          : "border-border bg-card"
+                      )}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setCorrectIndex(idx)}
+                        className={cn(
+                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-xs font-bold transition-colors",
+                          isCorrect
+                            ? "bg-emerald-600 text-white shadow-xs"
+                            : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        )}
+                      >
+                        {label}
+                      </button>
+                      <input
+                        type="text"
+                        required
+                        value={opt}
+                        onChange={(e) => {
+                          const newOpts = [...options];
+                          newOpts[idx] = e.target.value;
+                          setOptions(newOpts);
+                        }}
+                        className="flex-1 bg-transparent text-xs sm:text-sm text-foreground outline-none font-medium"
+                      />
+                      {isCorrect && (
+                        <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950">
+                          Đáp án ĐÚNG
+                        </span>
+                      )}
+                    </div>
                   );
                 })}
               </div>
-            </div>
 
-            <button
-              type="submit"
-              className="w-full py-3.5 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm shadow-md shadow-sky-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
-            >
-              <Save className="h-4 w-4" />
-              <span>Lưu Câu Hỏi Vào Ngân Hàng</span>
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* ============================================================= */}
-      {/* TAB 4: MANUAL SINGLE FLASHCARD FORM */}
-      {/* ============================================================= */}
-      {activeTab === "FLASHCARD" && (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const singleCard: FlashcardItem = {
-              id: `fc_single_${Date.now()}`,
-              front: fcFront,
-              back: fcBack,
-              hint: fcHint,
-              bloomLevel: fcBloom,
-              specialty: targetSpecialty,
-            };
-            setParsedFlashcards([singleCard]);
-            setBatchTargetDeckTitle(`Thẻ: ${fcFront.slice(0, 30)}...`);
-            handleSaveToLocalStorage();
-          }}
-          className="grid grid-cols-1 lg:grid-cols-3 gap-8"
-        >
-          <div className="lg:col-span-2 space-y-5">
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Mặt Trước (Thuật Ngữ / Triệu Chứng / Tên Hội Chứng) *
-              </label>
-              <textarea
-                rows={3}
-                required
-                placeholder="VD: Tam chứng Charcot trong nhiễm trùng đường mật gồm những dấu hiệu gì?"
-                value={fcFront}
-                onChange={(e) => setFcFront(e.target.value)}
-                className="w-full p-4 rounded-2xl border border-border bg-card text-xs sm:text-sm text-foreground font-semibold focus:ring-2 focus:ring-purple-500/50 outline-none"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Mặt Sau (Định Nghĩa / Cơ Chế Bệnh Sinh / Giải Pháp Xử Trí) *
-              </label>
-              <textarea
-                rows={5}
-                required
-                placeholder="VD: 1. Đau hạ sườn phải\n2. Sốt (kèm lạnh run)\n3. Vàng da - Vàng mắt..."
-                value={fcBack}
-                onChange={(e) => setFcBack(e.target.value)}
-                className="w-full p-4 rounded-2xl border border-border bg-card text-xs sm:text-sm text-foreground focus:ring-2 focus:ring-purple-500/50 outline-none whitespace-pre-line"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Gợi Ý Lâm Sàng (Hint - Tùy chọn)
-              </label>
-              <input
-                type="text"
-                placeholder="VD: Đau - Sốt - Vàng"
-                value={fcHint}
-                onChange={(e) => setFcHint(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-2xl border border-border bg-card text-xs sm:text-sm text-foreground outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <div className="p-5 rounded-3xl border border-border bg-card shadow-sm space-y-4">
-              <div className="flex items-center gap-2 text-foreground font-bold text-sm">
-                <BrainCircuit className="h-4 w-4 text-purple-600" />
-                <span>GẮN CẤP ĐỘ BLOOM CHO THẺ</span>
+              <div className="space-y-1.5 pt-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Lời Giải Thích Bệnh Học & Cơ Chế Lâm Sàng Chi Tiết *
+                </label>
+                <textarea
+                  rows={4}
+                  required
+                  placeholder="Giải thích cơ chế bệnh sinh chi tiết..."
+                  value={explanation}
+                  onChange={(e) => setExplanation(e.target.value)}
+                  className="w-full p-4 rounded-2xl border border-border bg-card text-xs sm:text-sm text-foreground focus:ring-2 focus:ring-sky-500/50 outline-none"
+                />
               </div>
-              <div className="space-y-2">
-                {bloomKeys.slice(0, 4).map((key) => {
-                  const info = BLOOM_TAXONOMY_MAP[key];
-                  const isSelected = fcBloom === key;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setFcBloom(key)}
-                      className={cn(
-                        "w-full text-left p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all",
-                        isSelected
-                          ? cn("border-2 shadow-xs", info.borderColor, info.bgLight, info.colorClass)
-                          : "border-border/60 hover:bg-muted text-muted-foreground"
-                      )}
-                    >
-                      <span>{info.vietnameseName}</span>
-                      {isSelected && <CheckCircle2 className="h-4 w-4" />}
-                    </button>
-                  );
-                })}
+            </div>
+
+            <div className="space-y-6">
+              <div className="p-5 rounded-3xl border border-border bg-card shadow-sm space-y-4">
+                <div className="flex items-center gap-2 text-foreground font-bold text-sm">
+                  <BrainCircuit className="h-4 w-4 text-indigo-600" />
+                  <span>GẮN THANG ĐO TƯ DUY BLOOM</span>
+                </div>
+                <div className="space-y-2">
+                  {bloomKeys.map((key) => {
+                    const info = BLOOM_TAXONOMY_MAP[key];
+                    const isSelected = bloomLevel === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setBloomLevel(key)}
+                        className={cn(
+                          "w-full text-left p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all",
+                          isSelected
+                            ? cn("border-2 shadow-xs", info.borderColor, info.bgLight, info.colorClass)
+                            : "border-border/60 hover:bg-muted text-muted-foreground"
+                        )}
+                      >
+                        <span>{info.vietnameseName}</span>
+                        {isSelected && <CheckCircle2 className="h-4 w-4" />}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm shadow-md shadow-purple-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
+                className="w-full py-3.5 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm shadow-md shadow-sky-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
               >
                 <Save className="h-4 w-4" />
-                <span>Lưu Thẻ Flashcard 3D</span>
+                <span>Lưu Câu Hỏi Vào Ngân Hàng</span>
               </button>
             </div>
-          </div>
-        </form>
-      )}
-    </div>
+          </form>
+        )}
+
+        {/* TAB 4: MANUAL SINGLE FLASHCARD FORM */}
+        {activeTab === "FLASHCARD" && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const singleCard: FlashcardItem = {
+                id: `fc_single_${Date.now()}`,
+                front: fcFront,
+                back: fcBack,
+                hint: fcHint,
+                bloomLevel: fcBloom,
+                specialty: targetSpecialty,
+              };
+              setParsedFlashcards([singleCard]);
+              setBatchTargetDeckTitle(`Thẻ: ${fcFront.slice(0, 30)}...`);
+              handleSaveToLocalStorage();
+            }}
+            className="grid grid-cols-1 lg:grid-cols-3 gap-8"
+          >
+            <div className="lg:col-span-2 space-y-5">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Mặt Trước (Thuật Ngữ / Triệu Chứng / Tên Hội Chứng) *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="VD: Tam chứng Charcot trong nhiễm trùng đường mật gồm những dấu hiệu gì?"
+                  value={fcFront}
+                  onChange={(e) => setFcFront(e.target.value)}
+                  className="w-full p-4 rounded-2xl border border-border bg-card text-xs sm:text-sm text-foreground font-semibold focus:ring-2 focus:ring-purple-500/50 outline-none"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Mặt Sau (Định Nghĩa / Cơ Chế Bệnh Sinh / Giải Pháp Xử Trí) *
+                </label>
+                <textarea
+                  rows={5}
+                  required
+                  placeholder="VD: 1. Đau hạ sườn phải\n2. Sốt (kèm lạnh run)\n3. Vàng da - Vàng mắt..."
+                  value={fcBack}
+                  onChange={(e) => setFcBack(e.target.value)}
+                  className="w-full p-4 rounded-2xl border border-border bg-card text-xs sm:text-sm text-foreground focus:ring-2 focus:ring-purple-500/50 outline-none whitespace-pre-line"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Gợi Ý Lâm Sàng (Hint - Tùy chọn)
+                </label>
+                <input
+                  type="text"
+                  placeholder="VD: Đau - Sốt - Vàng"
+                  value={fcHint}
+                  onChange={(e) => setFcHint(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-2xl border border-border bg-card text-xs sm:text-sm text-foreground outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="p-5 rounded-3xl border border-border bg-card shadow-sm space-y-4">
+                <div className="flex items-center gap-2 text-foreground font-bold text-sm">
+                  <BrainCircuit className="h-4 w-4 text-purple-600" />
+                  <span>GẮN CẤP ĐỘ BLOOM CHO THẺ</span>
+                </div>
+                <div className="space-y-2">
+                  {bloomKeys.slice(0, 4).map((key) => {
+                    const info = BLOOM_TAXONOMY_MAP[key];
+                    const isSelected = fcBloom === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setFcBloom(key)}
+                        className={cn(
+                          "w-full text-left p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all",
+                          isSelected
+                            ? cn("border-2 shadow-xs", info.borderColor, info.bgLight, info.colorClass)
+                            : "border-border/60 hover:bg-muted text-muted-foreground"
+                        )}
+                      >
+                        <span>{info.vietnameseName}</span>
+                        {isSelected && <CheckCircle2 className="h-4 w-4" />}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-3.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm shadow-md shadow-purple-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
+                >
+                  <Save className="h-4 w-4" />
+                  <span>Lưu Thẻ Flashcard 3D</span>
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+      </div>
+    </AuthGuard>
   );
 }

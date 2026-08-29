@@ -1,5 +1,8 @@
+"use client";
+
 import React from "react";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth-context";
 import {
   Stethoscope,
   BrainCircuit,
@@ -17,23 +20,43 @@ import {
   Zap,
   Clock,
   GraduationCap,
+  LogIn,
+  UserPlus,
+  Heart,
+  ShieldCheck,
+  User,
 } from "lucide-react";
 import { BloomBadge } from "@/components/mcq/bloom-badge";
 import { MEDICAL_SPECIALTIES } from "@/constants/bloom";
 
 export default function HomePage() {
+  const { isAuthenticated } = useAuth();
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* 1. HERO SECTION */}
-      <section className="relative overflow-hidden pt-12 pb-20 md:pt-20 md:pb-28 border-b border-border/50 bg-gradient-to-b from-sky-500/5 via-background to-background">
+      <section className="relative overflow-hidden pt-10 pb-20 md:pt-16 md:pb-28 border-b border-border/50 bg-gradient-to-b from-sky-500/5 via-background to-background">
         <div className="container mx-auto max-w-7xl px-4 sm:px-6">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-12">
             {/* Left Content */}
             <div className="flex-1 space-y-6 text-center lg:text-left">
-              {/* Top Medical Badge */}
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 text-xs font-bold shadow-xs">
-                <Sparkles className="h-4 w-4 text-amber-500" />
-                <span>Nền tảng Ôn Luyện Y Khoa Chuẩn Thang Đo Bloom 2026</span>
+              
+              {/* CREATOR RECOGNITION BADGE - Gọn gàng, Đẹp mắt & Nổi bật */}
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2.5">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-sky-500/10 via-indigo-500/10 to-purple-500/10 border border-sky-300/60 dark:border-sky-700/60 shadow-xs hover:scale-[1.02] transition-transform">
+                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-tr from-sky-600 to-indigo-600 text-white text-[10px] font-black shadow-xs">
+                    AT
+                  </div>
+                  <span className="text-xs text-foreground/90 font-medium">
+                    Nhà sáng tạo: <strong className="font-extrabold text-sky-700 dark:text-sky-300">Lê Anh Tuấn</strong> đã thực hiện
+                  </span>
+                  <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                </div>
+
+                <div className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 text-xs font-bold shadow-xs">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                  <span>Chuẩn Bloom 2026</span>
+                </div>
               </div>
 
               {/* Main Headline */}
@@ -54,20 +77,29 @@ export default function HomePage() {
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3.5 pt-2">
                 <Link
-                  href="/quiz/deck_cardio_01"
+                  href={isAuthenticated ? "/quiz/deck_cardio_01" : "/login"}
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold text-sm sm:text-base shadow-lg shadow-sky-500/25 transition-all hover:scale-[1.02]"
                 >
                   <BrainCircuit className="h-5 w-5" />
-                  <span>Trải Nghiệm Luyện MCQ Bloom</span>
+                  <span>{isAuthenticated ? "Vào Phòng Luyện MCQ Bloom" : "Đăng Nhập & Luyện MCQ"}</span>
                   <ArrowRight className="h-4 w-4" />
                 </Link>
 
                 <Link
-                  href="/folders"
+                  href={isAuthenticated ? "/folders" : "/register"}
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl border border-border bg-card hover:bg-muted font-bold text-sm sm:text-base text-foreground shadow-xs transition-all"
                 >
-                  <FolderTree className="h-5 w-5 text-sky-600" />
-                  <span>Khám Phá Cây Thư Mục</span>
+                  {isAuthenticated ? (
+                    <>
+                      <FolderTree className="h-5 w-5 text-sky-600" />
+                      <span>Cây Thư Mục Của Bạn</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="h-5 w-5 text-sky-600" />
+                      <span>Tạo Tài Khoản Mới</span>
+                    </>
+                  )}
                 </Link>
               </div>
 
@@ -108,7 +140,7 @@ export default function HomePage() {
                 {/* Question Demonstration */}
                 <div className="space-y-2">
                   <div className="p-3 rounded-xl bg-sky-50/60 dark:bg-sky-950/30 text-xs text-foreground/90 italic">
-                    "Bệnh nhân nam 62 tuổi, khó thở khi nằm, ran ẩm 2 đáy phổi, T3 Gallop..."
+                    &ldquo;Bệnh nhân nam 62 tuổi, khó thở khi nằm, ran ẩm 2 đáy phổi, T3 Gallop...&rdquo;
                   </div>
                   <p className="text-xs font-bold text-foreground">
                     Dấu hiệu nào có độ đặc hiệu cao nhất cho suy tim sung huyết?
@@ -174,7 +206,7 @@ export default function HomePage() {
                 </span>
                 <span className="text-xs text-muted-foreground font-mono">Cấp độ 1</span>
               </div>
-              <h4 className="font-bold text-sm text-foreground">Thuộc lòng trị số & giải phẫu</h4>
+              <h4 className="font-bold text-sm text-foreground">Thuộc lòng trị số &amp; giải phẫu</h4>
               <p className="text-xs text-muted-foreground">
                 Định nghĩa bệnh học, giải phẫu định khu, trị số xét nghiệm sinh hóa bình thường và tên các nhóm thuốc.
               </p>
@@ -187,7 +219,7 @@ export default function HomePage() {
                 </span>
                 <span className="text-xs text-muted-foreground font-mono">Cấp độ 2</span>
               </div>
-              <h4 className="font-bold text-sm text-foreground">Cơ chế bệnh sinh & Dược động học</h4>
+              <h4 className="font-bold text-sm text-foreground">Cơ chế bệnh sinh &amp; Dược động học</h4>
               <p className="text-xs text-muted-foreground">
                 Hiểu tại sao một triệu chứng xuất hiện, cơ chế bù trừ của hệ tim mạch và đường đào thải của thuốc.
               </p>
@@ -200,7 +232,7 @@ export default function HomePage() {
                 </span>
                 <span className="text-xs text-muted-foreground font-mono">Cấp độ 3</span>
               </div>
-              <h4 className="font-bold text-sm text-foreground">Tính liều & Áp dụng guideline</h4>
+              <h4 className="font-bold text-sm text-foreground">Tính liều &amp; Áp dụng guideline</h4>
               <p className="text-xs text-muted-foreground">
                 Tính điểm thang điểm (CHA2DS2-VASc, CURB-65), chỉnh liều theo độ thanh thải GFR và chọn thuốc bước 1.
               </p>
@@ -226,7 +258,7 @@ export default function HomePage() {
                 </span>
                 <span className="text-xs text-muted-foreground font-mono">Cấp độ 5</span>
               </div>
-              <h4 className="font-bold text-sm text-foreground">Tiên lượng & Chỉ định can thiệp</h4>
+              <h4 className="font-bold text-sm text-foreground">Tiên lượng &amp; Chỉ định can thiệp</h4>
               <p className="text-xs text-muted-foreground">
                 Cân nhắc nguy cơ - lợi ích giữa phẫu thuật cấp cứu và điều trị nội khoa bảo tồn cho bệnh nhân nặng.
               </p>
@@ -266,15 +298,15 @@ export default function HomePage() {
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-400">
                 <BrainCircuit className="h-6 w-6" />
               </div>
-              <h3 className="font-bold text-lg text-foreground">Luyện Trắc Nghiệm MCQ & Hẹn Giờ</h3>
+              <h3 className="font-bold text-lg text-foreground">Luyện Trắc Nghiệm MCQ &amp; Hẹn Giờ</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Đếm ngược thời gian tùy chỉnh, tự động nộp bài khi hết giờ. Hiển thị viền xanh đáp án đúng, viền đỏ đáp án sai và lời giải thích cơ chế bệnh học chi tiết.
               </p>
               <Link
-                href="/quiz/deck_cardio_01"
+                href={isAuthenticated ? "/quiz/deck_cardio_01" : "/login"}
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-600 hover:text-sky-700"
               >
-                <span>Bắt đầu thi thử</span>
+                <span>{isAuthenticated ? "Bắt đầu thi thử" : "Đăng nhập để thi thử"}</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
@@ -289,10 +321,10 @@ export default function HomePage() {
                 Lật thẻ 3D mượt mà với Framer Motion. Thuật toán lặp lại ngắt quãng tối ưu hóa trí nhớ dài hạn cho hàng ngàn liều thuốc và hội chứng lâm sàng.
               </p>
               <Link
-                href="/flashcards/deck_pharm_01"
+                href={isAuthenticated ? "/flashcards/deck_pharm_01" : "/login"}
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-600 hover:text-purple-700"
               >
-                <span>Lật thẻ ngay</span>
+                <span>{isAuthenticated ? "Lật thẻ ngay" : "Đăng nhập để học thẻ"}</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
@@ -302,15 +334,15 @@ export default function HomePage() {
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
                 <FolderTree className="h-6 w-6" />
               </div>
-              <h3 className="font-bold text-lg text-foreground">Cây Thư Mục & Trợ Lý MediAI</h3>
+              <h3 className="font-bold text-lg text-foreground">Cây Thư Mục &amp; Trợ Lý MediAI</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Tạo thư mục lớn và thư mục con chứa MCQ hoặc Flashcard tùy ý. MediAI giải thích ca bệnh và tự động sinh đề thi theo từng mốc Bloom.
               </p>
               <Link
-                href="/folders"
+                href={isAuthenticated ? "/folders" : "/login"}
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700"
               >
-                <span>Xem cây thư mục</span>
+                <span>{isAuthenticated ? "Xem cây thư mục" : "Đăng nhập để quản lý"}</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
@@ -318,7 +350,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 4. CALL TO ACTION BANNER */}
+      {/* 4. CALL TO ACTION BANNER & CREATOR FOOTER */}
       <section className="py-16 border-t border-border/60 bg-gradient-to-r from-sky-600 via-indigo-600 to-purple-600 text-white">
         <div className="container mx-auto max-w-5xl px-4 sm:px-6 text-center space-y-6">
           <GraduationCap className="h-12 w-12 mx-auto text-amber-300 animate-bounce" />
@@ -328,23 +360,31 @@ export default function HomePage() {
           <p className="text-sm sm:text-base text-sky-100 max-w-xl mx-auto font-normal">
             Tham gia cùng hàng ngàn sinh viên Đại học Y Dược đang rèn luyện tư duy lâm sàng và tự tin bứt phá trong các kỳ thi học kỳ và nội trú!
           </p>
+
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
-              href="/quiz/deck_cardio_01"
+              href={isAuthenticated ? "/quiz/deck_cardio_01" : "/login"}
               className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-white text-sky-700 hover:bg-sky-50 font-extrabold text-sm shadow-lg transition-all hover:scale-105"
             >
-              Bắt Đầu Luyện Đề Ngay
+              {isAuthenticated ? "Bắt Đầu Luyện Đề Ngay" : "Đăng Nhập Để Bắt Đầu"}
             </Link>
             <Link
-              href="/create"
+              href={isAuthenticated ? "/create" : "/register"}
               className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-sky-950/40 hover:bg-sky-950/60 border border-white/20 text-white font-bold text-sm transition-all"
             >
-              Soạn Bộ Câu Hỏi Của Bạn
+              {isAuthenticated ? "Soạn Bộ Câu Hỏi Mới" : "Tạo Tài Khoản Miễn Phí"}
             </Link>
+          </div>
+
+          {/* Compact Creator Attribution Badge */}
+          <div className="pt-6 border-t border-white/20 inline-flex items-center gap-2 text-xs text-sky-100">
+            <span>Dự án được xây dựng &amp; phát triển bởi</span>
+            <span className="font-extrabold text-white bg-white/10 px-3 py-1 rounded-full border border-white/20">
+              Nhà sáng tạo: Lê Anh Tuấn
+            </span>
           </div>
         </div>
       </section>
     </div>
   );
 }
-

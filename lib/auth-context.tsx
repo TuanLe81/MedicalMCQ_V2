@@ -7,6 +7,7 @@ import { MOCK_USER } from "@/lib/mock-data";
 interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   login: (identity: string, password: string) => { success: boolean; error?: string };
   register: (data: {
     name: string;
@@ -33,16 +34,15 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize from LocalStorage
+  // Initialize from LocalStorage (Do NOT auto-login, require user to log in)
   useEffect(() => {
     try {
       const storedUsersStr = localStorage.getItem("medlearn_users");
-      let usersList: UserProfile[] = [];
-
       if (!storedUsersStr) {
-        // Seed default user
-        usersList = [
+        // Seed default user database
+        const defaultUsers: UserProfile[] = [
           {
             ...MOCK_USER,
             username: "anhtuan",
@@ -70,21 +70,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             },
           },
         ];
-        localStorage.setItem("medlearn_users", JSON.stringify(usersList));
-      } else {
-        usersList = JSON.parse(storedUsersStr);
+        localStorage.setItem("medlearn_users", JSON.stringify(defaultUsers));
       }
 
+      // Check if user has an active logged-in session
       const activeUserStr = localStorage.getItem("medlearn_current_user");
       if (activeUserStr) {
         setUser(JSON.parse(activeUserStr));
-      } else if (usersList.length > 0) {
-        // Default login as first user
-        setUser(usersList[0]);
-        localStorage.setItem("medlearn_current_user", JSON.stringify(usersList[0]));
+      } else {
+        setUser(null); // No active session -> require login
       }
     } catch (e) {
-      setUser(MOCK_USER);
+      setUser(null);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -183,6 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         isAuthenticated: !!user,
+        isLoading,
         login,
         register,
         logout,
@@ -201,4 +201,3 @@ export function useAuth() {
   }
   return context;
 }
-
