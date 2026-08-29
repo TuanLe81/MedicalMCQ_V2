@@ -146,25 +146,39 @@ export default function LoginPage() {
           {/* Quick Demo Login Presets */}
           <div className="pt-2 border-t border-border/70 space-y-2.5">
             <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block text-center">
-              Hoặc Đăng Nhập Nhanh Tài Khoản Mẫu:
+              Đăng Nhập Nhanh Tài Khoản:
             </span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="space-y-2">
               <button
                 type="button"
-                onClick={() => handleQuickLogin("tuan.le@med.edu.vn", "123")}
-                className="p-2.5 rounded-xl border border-sky-200 dark:border-sky-900 bg-sky-50/50 dark:bg-sky-950/30 text-left hover:border-sky-400 transition-all text-xs"
+                onClick={() => handleQuickLogin("leanhtuan812006@gmail.com", "123")}
+                className="w-full p-2.5 rounded-xl border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/40 text-left hover:border-sky-500 transition-all text-xs flex items-center justify-between"
               >
-                <div className="font-bold text-foreground">BS. Anh Tuấn</div>
-                <div className="text-[10px] text-muted-foreground">Sinh viên Y4 (ĐHYD)</div>
+                <div>
+                  <div className="font-bold text-sky-700 dark:text-sky-300">BS. Lê Anh Tuấn (Chính thức)</div>
+                  <div className="text-[10px] text-muted-foreground">leanhtuan812006@gmail.com • Pass mặc định: 123</div>
+                </div>
+                <span className="text-[10px] bg-sky-600 text-white px-2 py-0.5 rounded-md font-bold">1-Click Đăng Nhập</span>
               </button>
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("mai.nguyen@med.edu.vn", "123")}
-                className="p-2.5 rounded-xl border border-purple-200 dark:border-purple-900 bg-purple-50/50 dark:bg-purple-950/30 text-left hover:border-purple-400 transition-all text-xs"
-              >
-                <div className="font-bold text-foreground">BSNT. Hoàng Mai</div>
-                <div className="text-[10px] text-muted-foreground">Bác Sĩ Nội Trú (ĐHYHN)</div>
-              </button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin("tuan.le@med.edu.vn", "123")}
+                  className="p-2 rounded-xl border border-border bg-card text-left hover:bg-muted transition-all text-xs"
+                >
+                  <div className="font-bold text-foreground">Tài khoản Mẫu</div>
+                  <div className="text-[10px] text-muted-foreground">Dùng thử (Chỉ xem)</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin("mai.nguyen@med.edu.vn", "123")}
+                  className="p-2 rounded-xl border border-border bg-card text-left hover:bg-muted transition-all text-xs"
+                >
+                  <div className="font-bold text-foreground">BSNT. Hoàng Mai</div>
+                  <div className="text-[10px] text-muted-foreground">Nội trú (ĐHYHN)</div>
+                </button>
+              </div>
             </div>
           </div>
         </div>
