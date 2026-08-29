@@ -1,11 +1,39 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { MOCK_FOLDERS } from "@/lib/mock-data";
 import { FolderTree } from "@/components/folder/folder-tree";
+import { FolderNode, Deck } from "@/types";
 import { FolderTree as FolderIcon, Sparkles } from "lucide-react";
 
 export default function FoldersPage() {
+  const [folders, setFolders] = useState<FolderNode[]>(MOCK_FOLDERS);
+
+  useEffect(() => {
+    try {
+      const storedCustom = localStorage.getItem("medlearn_custom_decks");
+      if (storedCustom) {
+        const customDecks: Deck[] = JSON.parse(storedCustom);
+        if (customDecks.length > 0) {
+          // Add a dynamic folder for custom imported decks
+          const customFolder: FolderNode = {
+            id: "folder_user_custom",
+            name: "⚡ Bộ Đề Tự Tạo & AI Import",
+            description: "Các bộ đề trắc nghiệm và flashcard bạn vừa nhập hoặc do AI sinh",
+            color: "#6366f1",
+            icon: "Sparkles",
+            children: [],
+            decks: customDecks,
+          };
+
+          setFolders([customFolder, ...MOCK_FOLDERS]);
+        }
+      }
+    } catch (e) {
+      // fallback
+    }
+  }, []);
+
   return (
     <div className="container mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-10 space-y-6">
       {/* Header */}
@@ -23,8 +51,7 @@ export default function FoldersPage() {
       </div>
 
       {/* Main Folder Tree Component */}
-      <FolderTree initialFolders={MOCK_FOLDERS} />
+      <FolderTree initialFolders={folders} />
     </div>
   );
 }
-

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { MOCK_MCQ_QUESTIONS } from "@/lib/mock-data";
@@ -19,6 +19,8 @@ import {
   Sparkles,
   Settings2,
   Clock,
+  Infinity as InfinityIcon,
+  Sliders,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,13 +28,15 @@ export default function QuizPage() {
   const params = useParams();
   const router = useRouter();
 
-  const deckTitle = "Bộ Đề MCQ Suy Tim & Bệnh Mạch Vành (Chuẩn Bloom)";
-  const questions: MCQQuestion[] = MOCK_MCQ_QUESTIONS;
+  const [deckTitle, setDeckTitle] = useState("Bộ Đề MCQ Suy Tim & Bệnh Mạch Vành (Chuẩn Bloom)");
+  const [questions, setQuestions] = useState<MCQQuestion[]>(MOCK_MCQ_QUESTIONS);
 
-  // Configuration States
+  // Configuration States: Custom Time Settings
   const [timerMinutes, setTimerMinutes] = useState<number>(10);
-  const [isExamStarted, setIsExamStarted] = useState<boolean>(true);
-  const [isExamMode, setIsExamMode] = useState<boolean>(false); // false = immediate feedback; true = test mode
+  const [customInputMinutes, setCustomInputMinutes] = useState<string>("10");
+  const [isUnlimitedTime, setIsUnlimitedTime] = useState<boolean>(false);
+  const [isExamMode, setIsExamMode] = useState<boolean>(false); // false = instant feedback; true = test mode
+  const [showTimeModal, setShowTimeModal] = useState<boolean>(false);
 
   // In-Quiz States
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
@@ -40,10 +44,28 @@ export default function QuizPage() {
   const [hasSubmitted, setHasSubmitted] = useState<boolean>(false);
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const [reviewMode, setReviewMode] = useState<boolean>(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+
+  // Load custom deck from localStorage if exists
+  useEffect(() => {
+    try {
+      const storedCustom = localStorage.getItem("medlearn_custom_decks");
+      if (storedCustom && params?.deckId) {
+        const customDecks = JSON.parse(storedCustom);
+        const matched = customDecks.find((d: any) => d.id === params.deckId);
+        if (matched && matched.questions && matched.questions.length > 0) {
+          setDeckTitle(matched.title);
+          setQuestions(matched.questions);
+        }
+      }
+    } catch (e) {
+      // fallback to mock
+    }
+  }, [params?.deckId]);
 
   // Handle Option Click
   const handleSelectOption = (optionIndex: number) => {
-    if (hasSubmitted && !isExamMode) return; // Locked in study mode after selection
+    if (hasSubmitted && !isExamMode) return;
 
     setUserAnswers((prev) => ({
       ...prev,
@@ -64,7 +86,7 @@ export default function QuizPage() {
 
     const total = questions.length;
     const incorrect = total - correct;
-    const percentage = Math.round((correct / total) * 100);
+    const percentage = total > 0 ? Math.round((correct / total) * 100) : 0;
     const bloomMatrix = calculateBloomMatrix(questions, userAnswers);
 
     const result: QuizResult = {
@@ -74,7 +96,7 @@ export default function QuizPage() {
       correctCount: correct,
       incorrectCount: incorrect,
       scorePercentage: percentage,
-      timeSpentSeconds: timerMinutes * 60,
+      timeSpentSeconds: isUnlimitedTime ? elapsedSeconds : timerMinutes * 60,
       bloomMatrix,
       userAnswers,
     };
@@ -89,11 +111,20 @@ export default function QuizPage() {
     setQuizResult(null);
     setReviewMode(false);
     setCurrentQuestionIndex(0);
+    setElapsedSeconds(0);
   };
 
   const handleReview = () => {
     setReviewMode(true);
     setQuizResult(null);
+  };
+
+  const applyCustomTime = (mins: number) => {
+    const validMins = Math.max(1, Math.min(300, mins));
+    setTimerMinutes(validMins);
+    setCustomInputMinutes(String(validMins));
+    setIsUnlimitedTime(false);
+    setShowTimeModal(false);
   };
 
   const currentQ = questions[currentQuestionIndex];
@@ -113,9 +144,9 @@ export default function QuizPage() {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 uppercase">
-                MCQ Y Khoa
+                MCQ Y Khoa ({questions.length} câu)
               </span>
-              <span className="text-xs text-muted-foreground">Nội Tim Mạch</span>
+              <span className="text-xs text-muted-foreground">Chuẩn Thang Đo Bloom</span>
             </div>
             <h1 className="text-lg sm:text-xl font-bold text-foreground leading-tight">
               {deckTitle}
@@ -123,25 +154,28 @@ export default function QuizPage() {
           </div>
         </div>
 
-        {/* Timer Config & Controls */}
-        <div className="flex items-center gap-3">
+        {/* Timer Config Display */}
+        <div className="flex items-center gap-2">
           {!hasSubmitted && (
-            <div className="w-44">
+            <div className="w-52">
               <QuizTimer
                 initialSeconds={timerMinutes * 60}
                 isActive={!hasSubmitted}
+                isUnlimited={isUnlimitedTime}
                 onTimeUp={handleSubmitQuiz}
+                onTimerTick={(s) => setElapsedSeconds(s)}
               />
             </div>
           )}
         </div>
       </div>
 
-      {/* Mode Switcher & Timer Setting Ribbon */}
+      {/* Mode Switcher & Custom Timer Setting Ribbon */}
       {!hasSubmitted && !reviewMode && (
         <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-muted/40 border border-border text-xs">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-muted-foreground">Chế độ hiển thị:</span>
+          {/* Display Mode */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-muted-foreground">Chế độ:</span>
             <button
               type="button"
               onClick={() => setIsExamMode(false)}
@@ -152,7 +186,7 @@ export default function QuizPage() {
                   : "bg-background text-muted-foreground border border-border"
               )}
             >
-              Hiện giải thích & Viền Xanh/Đỏ ngay
+              Hiện Viền Xanh/Đỏ & Giải Thích Ngay
             </button>
             <button
               type="button"
@@ -164,21 +198,23 @@ export default function QuizPage() {
                   : "bg-background text-muted-foreground border border-border"
               )}
             >
-              Chế độ Thi (Hiện sau khi nộp)
+              Thi Thử (Hiện sau khi nộp)
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Custom Time Control Section */}
+          <div className="flex items-center gap-1.5 flex-wrap">
             <Clock className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="font-semibold text-muted-foreground">Hẹn giờ:</span>
-            {[5, 10, 15, 30].map((mins) => (
+
+            {[5, 15, 30, 45].map((mins) => (
               <button
                 key={mins}
                 type="button"
-                onClick={() => setTimerMinutes(mins)}
+                onClick={() => applyCustomTime(mins)}
                 className={cn(
                   "px-2 py-0.5 rounded-md font-bold transition-all",
-                  timerMinutes === mins
+                  !isUnlimitedTime && timerMinutes === mins
                     ? "bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800"
                     : "text-muted-foreground hover:bg-muted"
                 )}
@@ -186,6 +222,101 @@ export default function QuizPage() {
                 {mins}p
               </button>
             ))}
+
+            {/* Custom Minutes Input Popover / Button */}
+            <button
+              type="button"
+              onClick={() => setShowTimeModal(true)}
+              className={cn(
+                "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-bold transition-all border",
+                !isUnlimitedTime && ![5, 15, 30, 45].includes(timerMinutes)
+                  ? "bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border-sky-300"
+                  : "border-border text-muted-foreground hover:bg-muted"
+              )}
+            >
+              <Sliders className="h-3 w-3" />
+              <span>
+                {!isUnlimitedTime && ![5, 15, 30, 45].includes(timerMinutes)
+                  ? `${timerMinutes} phút`
+                  : "Tùy chỉnh..."}
+              </span>
+            </button>
+
+            {/* Unlimited Time Toggle */}
+            <button
+              type="button"
+              onClick={() => setIsUnlimitedTime(!isUnlimitedTime)}
+              className={cn(
+                "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-bold transition-all",
+                isUnlimitedTime
+                  ? "bg-indigo-600 text-white shadow-xs"
+                  : "border border-border text-muted-foreground hover:bg-muted"
+              )}
+              title="Luyện tập không giới hạn thời gian"
+            >
+              <InfinityIcon className="h-3.5 w-3.5" />
+              <span>Tự do</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Time Modal */}
+      {showTimeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center gap-2 text-foreground font-bold text-base">
+              <Clock className="h-5 w-5 text-sky-600" />
+              <span>Cài Đặt Thời Gian Tự Do</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Nhập số phút bạn muốn làm bài kiểm tra (Từ 1 đến 180 phút):
+            </p>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                max={300}
+                value={customInputMinutes}
+                onChange={(e) => setCustomInputMinutes(e.target.value)}
+                placeholder="Số phút (VD: 20, 60, 90...)"
+                className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm font-bold text-foreground focus:ring-2 focus:ring-sky-500/50 outline-none"
+              />
+              <span className="text-sm font-semibold text-muted-foreground whitespace-nowrap">
+                Phút
+              </span>
+            </div>
+
+            <div className="grid grid-cols-4 gap-1.5 pt-1">
+              {[10, 20, 45, 60, 90, 120].map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setCustomInputMinutes(String(m))}
+                  className="py-1.5 rounded-lg border border-border/80 bg-muted/40 hover:bg-muted text-xs font-bold"
+                >
+                  {m}p
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
+              <button
+                type="button"
+                onClick={() => setShowTimeModal(false)}
+                className="px-3.5 py-2 rounded-xl border border-border text-xs font-semibold hover:bg-muted"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                onClick={() => applyCustomTime(Number(customInputMinutes) || 10)}
+                className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-xs"
+              >
+                Áp Dụng Hẹn Giờ
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -232,7 +363,7 @@ export default function QuizPage() {
         </div>
 
         {/* Question Numbers Quick Palette */}
-        <div className="flex items-center gap-1.5 flex-wrap justify-center">
+        <div className="flex items-center gap-1.5 flex-wrap justify-center max-w-md overflow-x-auto p-1">
           {questions.map((q, idx) => {
             const isAnswered = userAnswers[idx] !== undefined;
             const isCurrent = idx === currentQuestionIndex;
@@ -300,4 +431,3 @@ export default function QuizPage() {
     </div>
   );
 }
-

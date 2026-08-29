@@ -100,6 +100,8 @@ export interface UserProfile {
   id: string;
   name: string;
   email: string;
+  username?: string;
+  password?: string;
   role: 'STUDENT' | 'RESIDENT_DOCTOR' | 'LECTURER';
   medicalSchool: string;
   yearOfStudy: number;
@@ -114,4 +116,3 @@ export interface UserProfile {
     }
   };
 }
-
