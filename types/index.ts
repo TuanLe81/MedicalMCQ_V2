@@ -60,6 +60,7 @@ export interface Deck {
   flashcards?: FlashcardItem[];
   itemCount: number;
   updatedAt: string;
+  isSystemMock?: boolean;
 }
 
 export interface FolderNode {
@@ -72,6 +73,23 @@ export interface FolderNode {
   children?: FolderNode[];
   decks?: Deck[];
   createdAt?: string;
+  isShared?: boolean;
+  sharedBy?: string;
+  sharedAt?: string;
+  isSystemMock?: boolean;
+}
+
+export interface FolderShareRequest {
+  id: string;
+  folderId: string;
+  folderName: string;
+  ownerId: string;
+  ownerName: string;
+  ownerSchool?: string;
+  targetUsernameOrEmail: string;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  createdAt: string;
+  folderData: FolderNode;
 }
 
 export interface BloomScoreMatrix {
@@ -102,6 +120,7 @@ export interface UserProfile {
   email: string;
   username?: string;
   password?: string;
+  isDemo?: boolean; // Flag to lock demo accounts from editing
   role: 'STUDENT' | 'RESIDENT_DOCTOR' | 'LECTURER';
   medicalSchool: string;
   yearOfStudy: number;

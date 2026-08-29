@@ -1,8 +1,8 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { UserProfile, BloomLevel } from "@/types";
-import { MOCK_USER } from "@/lib/mock-data";
+import { UserProfile, BloomLevel, FolderShareRequest, FolderNode } from "@/types";
+import { MOCK_USER, MOCK_FOLDERS } from "@/lib/mock-data";
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -19,6 +19,12 @@ interface AuthContextType {
   }) => { success: boolean; error?: string };
   logout: () => void;
   updateUserStreak: () => void;
+  // Folder Sharing System
+  shareRequests: FolderShareRequest[];
+  sendShareRequest: (folder: FolderNode, target: string) => { success: boolean; error?: string };
+  respondShareRequest: (requestId: string, accept: boolean) => void;
+  getUserFolders: () => FolderNode[];
+  saveUserFolders: (folders: FolderNode[]) => { success: boolean; error?: string };
 }
 
 const defaultStats: Record<BloomLevel, { total: number; correct: number; percentage: number }> = {
@@ -35,18 +41,20 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [shareRequests, setShareRequests] = useState<FolderShareRequest[]>([]);
 
-  // Initialize from LocalStorage (Do NOT auto-login, require user to log in)
+  // Initialize from LocalStorage
   useEffect(() => {
     try {
       const storedUsersStr = localStorage.getItem("medlearn_users");
       if (!storedUsersStr) {
-        // Seed default user database
+        // Seed default demo accounts with isDemo: true (Locked from editing)
         const defaultUsers: UserProfile[] = [
           {
             ...MOCK_USER,
             username: "anhtuan",
             password: "123",
+            isDemo: true, // Demo account locked
           },
           {
             id: "user_sv_y4",
@@ -54,6 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             username: "hoangmai",
             email: "mai.nguyen@med.edu.vn",
             password: "123",
+            isDemo: true, // Demo account locked
             role: "RESIDENT_DOCTOR",
             medicalSchool: "Đại học Y Hà Nội (Bác Sĩ Nội Trú)",
             yearOfStudy: 6,
@@ -76,9 +85,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Check if user has an active logged-in session
       const activeUserStr = localStorage.getItem("medlearn_current_user");
       if (activeUserStr) {
-        setUser(JSON.parse(activeUserStr));
+        const parsedUser = JSON.parse(activeUserStr);
+        setUser(parsedUser);
       } else {
-        setUser(null); // No active session -> require login
+        setUser(null);
+      }
+
+      // Load Share Requests
+      const storedShares = localStorage.getItem("medlearn_share_requests");
+      if (storedShares) {
+        setShareRequests(JSON.parse(storedShares));
       }
     } catch (e) {
       setUser(null);
@@ -139,12 +155,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
       }
 
+      const newUserId = `user_${Date.now()}`;
       const newUser: UserProfile = {
-        id: `user_${Date.now()}`,
+        id: newUserId,
         name: data.name,
         username: data.username,
         email: data.email,
         password: data.password,
+        isDemo: false, // Regular personal user account (allowed to edit)
         role: "STUDENT",
         medicalSchool: data.medicalSchool || "Đại học Y Dược TP.HCM",
         yearOfStudy: data.yearOfStudy || 4,
@@ -156,6 +174,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       usersList.push(newUser);
       localStorage.setItem("medlearn_users", JSON.stringify(usersList));
+
+      // CRITICAL: Initialize EMPTY folders for newly registered users (no sample mock folders!)
+      localStorage.setItem(`medlearn_folders_${newUserId}`, JSON.stringify([]));
 
       setUser(newUser);
       localStorage.setItem("medlearn_current_user", JSON.stringify(newUser));
@@ -177,6 +198,100 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("medlearn_current_user", JSON.stringify(updated));
   };
 
+  // Get folders for current user (EMPTY for new accounts, MOCK for demo)
+  const getUserFolders = (): FolderNode[] => {
+    if (!user) return [];
+    if (user.isDemo) {
+      // Demo accounts show mock sample folders with isSystemMock: true
+      return MOCK_FOLDERS.map(f => ({ ...f, isSystemMock: true }));
+    }
+    const userFoldersStr = localStorage.getItem(`medlearn_folders_${user.id}`);
+    return userFoldersStr ? JSON.parse(userFoldersStr) : [];
+  };
+
+  // Save folders for current user (Blocked for demo accounts!)
+  const saveUserFolders = (folders: FolderNode[]): { success: boolean; error?: string } => {
+    if (!user) return { success: false, error: "Chưa đăng nhập!" };
+    if (user.isDemo) {
+      return {
+        success: false,
+        error: "🔒 Tài khoản mẫu dùng thử ở chế độ 'Chỉ Xem'. Không thể chỉnh sửa hoặc xóa dữ liệu mẫu. Vui lòng tạo tài khoản mới để sở hữu thư mục riêng của bạn!",
+      };
+    }
+    localStorage.setItem(`medlearn_folders_${user.id}`, JSON.stringify(folders));
+    return { success: true };
+  };
+
+  // Send Folder Share Request
+  const sendShareRequest = (folder: FolderNode, target: string): { success: boolean; error?: string } => {
+    if (!user) return { success: false, error: "Vui lòng đăng nhập để chia sẻ thư mục!" };
+    if (user.isDemo) {
+      return {
+        success: false,
+        error: "🔒 Tài khoản mẫu dùng thử không thể thực hiện gửi lời mời chia sẻ!",
+      };
+    }
+
+    const cleanTarget = target.trim().toLowerCase();
+    if (cleanTarget === user.username?.toLowerCase() || cleanTarget === user.email?.toLowerCase()) {
+      return { success: false, error: "Bạn không thể tự chia sẻ thư mục cho chính mình!" };
+    }
+
+    const newRequest: FolderShareRequest = {
+      id: `share_${Date.now()}`,
+      folderId: folder.id,
+      folderName: folder.name,
+      ownerId: user.id,
+      ownerName: user.name,
+      ownerSchool: user.medicalSchool,
+      targetUsernameOrEmail: cleanTarget,
+      status: "PENDING",
+      createdAt: new Date().toLocaleDateString("vi-VN"),
+      folderData: {
+        ...folder,
+        isShared: true,
+        sharedBy: user.name,
+        sharedAt: new Date().toLocaleDateString("vi-VN"),
+      },
+    };
+
+    const storedShares = localStorage.getItem("medlearn_share_requests");
+    const allShares: FolderShareRequest[] = storedShares ? JSON.parse(storedShares) : [];
+    allShares.unshift(newRequest);
+    localStorage.setItem("medlearn_share_requests", JSON.stringify(allShares));
+    setShareRequests(allShares);
+
+    return { success: true };
+  };
+
+  // Respond to Share Request (Accept or Decline)
+  const respondShareRequest = (requestId: string, accept: boolean) => {
+    if (!user) return;
+    const storedShares = localStorage.getItem("medlearn_share_requests");
+    const allShares: FolderShareRequest[] = storedShares ? JSON.parse(storedShares) : [];
+
+    const targetReq = allShares.find((r) => r.id === requestId);
+    if (!targetReq) return;
+
+    targetReq.status = accept ? "ACCEPTED" : "REJECTED";
+    localStorage.setItem("medlearn_share_requests", JSON.stringify(allShares));
+    setShareRequests(allShares);
+
+    if (accept && !user.isDemo) {
+      // Add shared folder into user's folders
+      const currentFolders = getUserFolders();
+      const folderToAdd: FolderNode = {
+        ...targetReq.folderData,
+        id: `shared_copy_${Date.now()}`,
+        isShared: true,
+        sharedBy: targetReq.ownerName,
+        sharedAt: targetReq.createdAt,
+      };
+      const updated = [folderToAdd, ...currentFolders];
+      saveUserFolders(updated);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -187,6 +302,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         register,
         logout,
         updateUserStreak,
+        shareRequests,
+        sendShareRequest,
+        respondShareRequest,
+        getUserFolders,
+        saveUserFolders,
       }}
     >
       {children}

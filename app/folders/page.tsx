@@ -1,38 +1,29 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { MOCK_FOLDERS } from "@/lib/mock-data";
 import { FolderTree } from "@/components/folder/folder-tree";
 import { AuthGuard } from "@/components/auth-guard";
+import { useAuth } from "@/lib/auth-context";
 import { FolderNode, Deck } from "@/types";
 import { FolderTree as FolderIcon, Sparkles } from "lucide-react";
 
 export default function FoldersPage() {
-  const [folders, setFolders] = useState<FolderNode[]>(MOCK_FOLDERS);
+  const { getUserFolders, user } = useAuth();
+  const [folders, setFolders] = useState<FolderNode[]>([]);
+  const [isLoadingFolders, setIsLoadingFolders] = useState(true);
 
   useEffect(() => {
-    try {
-      const storedCustom = localStorage.getItem("medlearn_custom_decks");
-      if (storedCustom) {
-        const customDecks: Deck[] = JSON.parse(storedCustom);
-        if (customDecks.length > 0) {
-          const customFolder: FolderNode = {
-            id: "folder_user_custom",
-            name: "⚡ Bộ Đề Tự Tạo & AI Import",
-            description: "Các bộ đề trắc nghiệm và flashcard bạn vừa nhập hoặc do AI sinh",
-            color: "#6366f1",
-            icon: "Sparkles",
-            children: [],
-            decks: customDecks,
-          };
-
-          setFolders([customFolder, ...MOCK_FOLDERS]);
-        }
+    if (user) {
+      try {
+        const loaded = getUserFolders();
+        setFolders(loaded);
+      } catch (e) {
+        setFolders([]);
+      } finally {
+        setIsLoadingFolders(false);
       }
-    } catch (e) {
-      // fallback
     }
-  }, []);
+  }, [user]);
 
   return (
     <AuthGuard
@@ -47,7 +38,7 @@ export default function FoldersPage() {
             <span>HỆ THỐNG QUẢN LÝ TÀI LIỆU Y KHOA ĐA CẤP</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-foreground">
-            Cây Thư Mục & Ngân Hàng Bộ Đề
+            Cây Thư Mục &amp; Ngân Hàng Bộ Đề
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground">
             Tổ chức các thư mục lớn (Nội khoa, Dược lý, Giải phẫu) và các module con chứa bộ câu hỏi MCQ, Flashcard hoặc kết hợp cả hai.
@@ -55,7 +46,7 @@ export default function FoldersPage() {
         </div>
 
         {/* Main Folder Tree Component */}
-        <FolderTree initialFolders={folders} />
+        {!isLoadingFolders && <FolderTree initialFolders={folders} />}
       </div>
     </AuthGuard>
   );

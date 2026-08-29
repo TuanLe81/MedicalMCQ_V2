@@ -7,6 +7,7 @@ import { BloomLevel, MCQQuestion, FlashcardItem, DeckType } from "@/types";
 import { BLOOM_TAXONOMY_MAP, MEDICAL_SPECIALTIES } from "@/constants/bloom";
 import { BloomBadge } from "@/components/mcq/bloom-badge";
 import { AuthGuard } from "@/components/auth-guard";
+import { useAuth } from "@/lib/auth-context";
 import {
   FilePlus,
   Layers,
@@ -28,11 +29,13 @@ import {
   Bot,
   Wand2,
   RefreshCw,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function CreateStudioPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"AI_GEN" | "BATCH" | "MCQ" | "FLASHCARD">("AI_GEN");
 
   // Single MCQ Form States
@@ -391,6 +394,29 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
             </div>
           )}
         </div>
+
+        {/* Demo User Notice Banner */}
+        {user?.isDemo && (
+          <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-amber-800 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5">
+              <Lock className="h-5 w-5 text-amber-600 shrink-0" />
+              <div>
+                <span className="font-bold uppercase tracking-wider block">
+                  Tài Khoản Mẫu Dùng Thử
+                </span>
+                <span className="text-[11px] opacity-90">
+                  Bạn có thể tạo câu hỏi và trải nghiệm sinh đề AI. Để lưu trữ vĩnh viễn và chia sẻ cùng bạn bè, vui lòng tạo tài khoản riêng.
+                </span>
+              </div>
+            </div>
+            <Link
+              href="/register"
+              className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold whitespace-nowrap text-center shadow-xs transition-all"
+            >
+              Tạo Tài Khoản Riêng
+            </Link>
+          </div>
+        )}
 
         {/* Tabs Switcher */}
         <div className="flex items-center gap-2 border-b border-border overflow-x-auto">
