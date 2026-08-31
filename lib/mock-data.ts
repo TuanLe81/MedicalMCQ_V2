@@ -1,22 +1,25 @@
 import { FolderNode, Deck, MCQQuestion, FlashcardItem, UserProfile } from "@/types";
 
 export const MOCK_USER: UserProfile = {
-  id: "user_bs_y4_01",
+  id: "user_tuan_le_primary",
   name: "BS. Lê Anh Tuấn",
-  email: "tuan.le@med.edu.vn",
+  email: "leanhtuan812006@gmail.com",
+  username: "leanhtuan",
   role: "STUDENT",
-  medicalSchool: "Đại học Y Dược TP.HCM (Khoa Y - Y4)",
+  medicalSchool: "Đại học Y Dược TP.HCM",
   yearOfStudy: 4,
-  streakCount: 14,
-  totalQuestionsAnswered: 342,
-  overallAccuracy: 84.5,
+  streakCount: 1, // Clean initial checkin streak
+  totalQuestionsAnswered: 0, // Clean initial stats
+  totalCorrectAnswers: 0,
+  overallAccuracy: 0,
+  lastCheckInDate: "",
   bloomTaxonomyStats: {
-    REMEMBERING: { total: 110, correct: 98, percentage: 89 },
-    UNDERSTANDING: { total: 85, correct: 74, percentage: 87 },
-    APPLYING: { total: 65, correct: 54, percentage: 83 },
-    ANALYZING: { total: 50, correct: 40, percentage: 80 },
-    EVALUATING: { total: 20, correct: 15, percentage: 75 },
-    CREATING: { total: 12, correct: 8, percentage: 67 },
+    REMEMBERING: { total: 0, correct: 0, percentage: 0 },
+    UNDERSTANDING: { total: 0, correct: 0, percentage: 0 },
+    APPLYING: { total: 0, correct: 0, percentage: 0 },
+    ANALYZING: { total: 0, correct: 0, percentage: 0 },
+    EVALUATING: { total: 0, correct: 0, percentage: 0 },
+    CREATING: { total: 0, correct: 0, percentage: 0 },
   },
 };
 
@@ -61,61 +64,13 @@ export const MOCK_MCQ_QUESTIONS: MCQQuestion[] = [
     bloomLevel: "UNDERSTANDING",
     difficulty: "MEDIUM",
     options: [
-      "A. ACEi gây giãn tiểu động mạch đi cầu thận (efferent arteriole) làm giảm áp lực lọc GFR, đồng thời giảm bài tiết Aldosterone làm giảm thải K+ tại ống lượn xa",
-      "B. ACEi gây co tiểu động mạch đến cầu thận làm giảm lưu lượng máu thận và tăng tái hấp thu K+",
-      "C. ACEi kích thích trực tiếp thụ thể AT1 gây co thắt mạch thận diện rộng",
-      "D. ACEi ức chế men Na+/K+-ATPase tại màng đáy tế bào ống thận"
+      "A. Giãn tiểu động mạch đi cầu thận làm giảm áp lực lọc cầu thận (GFR) và ức chế tiết Aldosterone làm giảm thải Kali ở ống lượn xa",
+      "B. Co thắt tiểu động mạch đến làm tăng áp lực lọc cầu thận",
+      "C. Tăng bài tiết Aldosterone làm giữ Kali và thải Natri",
+      "D. Độc trực tiếp lên tế bào biểu mô ống lượn gần gây hoại tử ống thận cấp"
     ],
     correctIndex: 0,
-    explanation: "Angiotensin II bình thường có tác dụng co tiểu động mạch đi (efferent arteriole) để duy trì áp lực lọc cầu thận (GFR). Thuốc ACEi ngăn tạo Angiotensin II -> giãn tiểu động mạch đi -> giảm áp lực lọc qua màng cầu thận -> tăng nhẹ Creatinine. Đồng thời do giảm Aldosterone (vốn làm nhiệm vụ thải K+ đổi Na+ ở ống lượn xa và ống góp) -> giữ K+ trong máu gây tăng Kali máu."
-  },
-  {
-    id: "mcq_4",
-    deckId: "deck_cardio_01",
-    clinicalVignette: "Bệnh nhân nam 70 tuổi, rung nhĩ cơn kịch phát, có tiền sử tăng huyết áp (HA 145/85), đái tháo đường type 2, chưa từng đột quỵ hay TIA, không có bệnh mạch máu ngoại biên, giới tính Nam.",
-    questionText: "Tính điểm CHA2DS2-VASc cho bệnh nhân này và đưa ra quyết định điều trị kháng đông đường uống phù hợp nhất theo guideline?",
-    bloomLevel: "APPLYING",
-    difficulty: "MEDIUM",
-    options: [
-      "A. Điểm CHA2DS2-VASc = 2 điểm -> Khuyến cáo dùng kháng đông trực tiếp đường uống (DOAC/NOAC) nhóm I",
-      "B. Điểm CHA2DS2-VASc = 1 điểm -> Chỉ cần dùng Aspirin 81mg/ngày",
-      "C. Điểm CHA2DS2-VASc = 0 điểm -> Không cần điều trị kháng đông",
-      "D. Điểm CHA2DS2-VASc = 3 điểm -> Bắt buộc dùng Kháng vitamin K (Warfarin) kết hợp Clopidogrel"
-    ],
-    correctIndex: 0,
-    explanation: "Tính điểm CHA2DS2-VASc: Tuổi 70 (65-74 tuổi) = 1 điểm; Tăng huyết áp = 1 điểm; Đái tháo đường = 1 điểm; Nam giới = 0 điểm -> Tổng cộng = 3 điểm (hoặc ít nhất >= 2 ở nam). Với điểm >= 2 ở nam, khuyến cáo Nhóm I là dùng thuốc chống đông đường uống, ưu tiên NOAC/DOAC (Apixaban, Rivaroxaban, Dabigatran, Edoxaban) hơn là Warfarin trừ khi có hẹp van 2 lá cơ học."
-  },
-  {
-    id: "mcq_5",
-    deckId: "deck_cardio_01",
-    clinicalVignette: "Bệnh nhân nữ 45 tuổi vào viện vì sốt cao dao động 2 tuần kèm mệt mỏi, sụt cân. Khám thấy âm thổi tâm thu mới xuất hiện 3/6 ở mỏm tim, nốt Osler ở đầu ngón tay. Siêu âm tim qua thực quản (TEE) phát hiện khối sùi kích thước 12mm ở lá trước van 2 lá kèm hở van 2 lá nặng cấp tính, huyết động bắt đầu suy tim ứ huyết không đáp ứng thuốc lợi tiểu.",
-    questionText: "Đánh giá can thiệp tiếp theo nào là TỐI ƯU và CẤP THIẾT NHẤT để cải thiện tiên lượng sống còn cho bệnh nhân này?",
-    bloomLevel: "EVALUATING",
-    difficulty: "HARD",
-    options: [
-      "A. Chỉ định phẫu thuật tim cấp cứu/khẩn cấp thay hoặc sửa van 2 lá kèm kháng sinh đường tĩnh mạch trúng đích",
-      "B. Tiếp tục trì hoãn phẫu thuật đợi đủ 6 tuần kháng sinh tĩnh mạch liều cao",
-      "C. Chỉ định chụp CT mạch vành trước khi xét điều trị",
-      "D. Dùng thuốc tiêu sợi huyết Alteplase để làm tan khối sùi van tim"
-    ],
-    correctIndex: 0,
-    explanation: "Theo khuyến cáo ESC/AHA về Viêm nội tâm mạc nhiễm trùng (IE), các chỉ định phẫu thuật khẩn cấp gồm: (1) Suy tim cấp do hở van nặng; (2) Nhiễm trùng không kiểm soát được; (3) Nguy cơ tắc mạch cao (kích thước sùi > 10mm kèm hở van nặng). Việc chờ đợi kháng sinh 6 tuần sẽ làm tăng nguy cơ tử vong do phù phổi cấp hoặc thuyên tắc mạch não."
-  },
-  {
-    id: "mcq_6",
-    deckId: "deck_cardio_01",
-    clinicalVignette: "Trong bối cảnh bệnh nhân suy tim nặng giai đoạn cuối kháng trị mọi thuốc tối ưu, khoa Tim mạch can thiệp muốn xây dựng một phác đồ can thiệp đa mô thức tích hợp thiết bị hỗ trợ tâm thất (LVAD) và cầu nối ghép tim (Bridge to Transplant).",
-    questionText: "Bước thiết kế chiến lược quản lý toàn diện nào sau đây thể hiện sự phối hợp tối ưu giữa phòng ngừa biến chứng huyết khối và kiểm soát nhiễm trùng đường dẫn (driveline infection)?",
-    bloomLevel: "CREATING",
-    difficulty: "HARD",
-    options: [
-      "A. Thiết lập quy trình chăm sóc chân ống dẫn vô khuẩn nghiêm ngặt, theo dõi INR mục tiêu 2.0-3.0 kèm thuốc kháng kết tập tiểu cầu, và xây dựng kế hoạch tập phục hồi chức năng tim mạch sớm",
-      "B. Dùng kháng sinh dự phòng toàn thân kéo dài suốt đời và duy trì INR > 4.0",
-      "C. Cấm bệnh nhân vận động hoàn toàn và không dùng bất kỳ thuốc chống đông nào",
-      "D. Chỉ kiểm tra khi có biểu hiện sốt hoặc chảy máu nặng trên lâm sàng"
-    ],
-    correctIndex: 0,
-    explanation: "Chiến lược tối ưu cho bệnh nhân LVAD đòi hỏi cá thể hóa: duy trì chống đông kép cân bằng giữa nguy cơ chảy máu và tắc bơm (INR 2.0-3.0 + Antiplatelet), kết hợp quy trình vô khuẩn chân ống dẫn và phục hồi chức năng để chuẩn bị cho ca ghép tim."
+    explanation: "Angiotensin II bình thường gây co tiểu động mạch đi (efferent arteriole) để duy trì GFR khi tưới máu thận giảm. Thuốc ACEi ngăn tạo Angiotensin II -> giãn tiểu động mạch đi -> giảm áp lực lọc cầu thận -> tăng Creatinine. Đồng thời ức chế Aldosterone -> giảm bài xuất K+ ở ống lượn xa và ống góp -> gây tăng Kali máu."
   }
 ];
 
@@ -123,8 +78,8 @@ export const MOCK_FLASHCARDS: FlashcardItem[] = [
   {
     id: "fc_1",
     deckId: "deck_pharm_01",
-    front: "Tam chứng Charcot (Charcot's Triad) trong nhiễm trùng đường mật gồm những dấu hiệu gì?",
-    back: "1. Đau hạ sườn phải\n2. Sốt (kèm lạnh run)\n3. Vàng da - Vàng mắt\n(Gặp trong viêm đường mật cấp do sỏi). Ngũ chứng Reynolds có thêm: Tụt huyết áp (Shock) + Rối loạn tri giác.",
+    front: "Tam chứng Charcot trong nhiễm trùng đường mật cấp gồm những triệu chứng kinh điển nào?",
+    back: "1. Đau hạ sườn phải\n2. Sốt (kèm lạnh run / rét run)\n3. Vàng da - Vàng mắt\n(Xuất hiện theo đúng trình tự Đau -> Sốt -> Vàng)",
     hint: "Đau - Sốt - Vàng",
     bloomLevel: "REMEMBERING",
     specialty: "Ngoại Tiêu Hóa"
@@ -132,140 +87,99 @@ export const MOCK_FLASHCARDS: FlashcardItem[] = [
   {
     id: "fc_2",
     deckId: "deck_pharm_01",
-    front: "Cơ chế tác dụng của thuốc Nitroglycerin trong cơn đau thắt ngực là gì?",
-    back: "Nitroglycerin chuyển thành Nitric Oxide (NO) -> kích hoạt Guanylyl cyclase -> tăng cGMP -> giãn cơ trơn mạch máu (chủ yếu là hệ tĩnh mạch) -> Giảm tiền tải (Preload) -> Giảm công tim và nhu cầu oxy cơ tim, đồng thời giãn mạch vành.",
-    hint: "Giảm tiền tải qua trung gian NO / cGMP",
-    bloomLevel: "UNDERSTANDING",
-    specialty: "Dược Lý Lâm Sàng"
+    front: "Ngũ chứng Reynolds trong viêm đường mật hoại tử / sốc nhiễm trùng đường mật gồm các dấu hiệu gì?",
+    back: "Tam chứng Charcot (Đau + Sốt + Vàng da) CỘNG VỚI:\n4. Tụt huyết áp (Sốc nhiễm trùng / Shock)\n5. Rối loạn tri giác (Hôn mê, lơ mơ, bứt rứt)\n=> Chỉ định can thiệp dẫn lưu đường mật cấp cứu khẩn!",
+    hint: "Charcot + Sốc + Tri giác",
+    bloomLevel: "ANALYZING",
+    specialty: "Ngoại Cấp Cứu"
   },
   {
     id: "fc_3",
     deckId: "deck_pharm_01",
-    front: "Quy tắc 4 bước đọc điện tâm đồ (ECG) cấp cứu đối với Nhồi máu cơ tim ST chênh lên (STEMI)?",
-    back: "1. Tần số & Nhịp\n2. Đoạn ST chênh lên >= 1mm ở >= 2 chuyển đạo liên tiếp (hoặc >= 1.5-2.5mm ở V2-V3)\n3. Tìm hình ảnh soi gương (Reciprocal changes)\n4. Xác định vùng thành tim bị tổn thương (Trước, Dưới, Bên, Thất phải).",
-    hint: "ST chênh ở 2 chuyển đạo liên tiếp cùng vùng",
-    bloomLevel: "APPLYING",
-    specialty: "Nội Tim Mạch"
+    front: "Cơ chế tác dụng dược lý của Nitroglycerin (NTG) trong điều trị cơn đau thắt ngực cấp?",
+    back: "NTG chuyển hóa giải phóng Nitric Oxide (NO) trong tế bào cơ trơn mạch máu -> kích hoạt Guanylyl Cyclase -> tăng nồng độ cGMP -> khử phosphoryl myosin light chain -> Giãn hệ tĩnh mạch là chủ yếu -> Giảm lượng máu tĩnh mạch về tim (Giảm tiền tải) -> Giảm sức căng thành thất trái và giảm nhu cầu tiêu thụ oxy của cơ tim.",
+    hint: "Giải phóng NO -> cGMP -> Giảm tiền tải",
+    bloomLevel: "UNDERSTANDING",
+    specialty: "Dược Lý Tim Mạch"
   },
   {
     id: "fc_4",
     deckId: "deck_pharm_01",
-    front: "Phân biệt Đái tháo nhạt do trung ương (Central DI) và Đái tháo nhạt do thận (Nephrogenic DI) bằng nghiệm pháp gì?",
-    back: "Dùng 'Nghiệm pháp nhịn nước' (Water Deprivation Test) sau đó tiêm Desmopressin (dDAVP):\n- Central DI: Tăng áp lực thẩm thấu nước tiểu (> 50%) sau tiêm dDAVP.\n- Nephrogenic DI: Không đáp ứng / tăng rất ít (< 10%) vì thụ thể V2 tại thận bị trơ hoặc đột biến.",
-    hint: "Tiêm Desmopressin (dDAVP)",
-    bloomLevel: "ANALYZING",
-    specialty: "Nội Tiết"
+    front: "Chỉ số Shock Index (SI) được tính như thế nào và ngưỡng báo động sốc mất máu / sốc tim?",
+    back: "Shock Index (SI) = Tần số tim (HR) / Huyết áp tâm thu (SBP)\n- Bình thường: 0.5 - 0.7\n- SI >= 0.9 - 1.0: Cảnh báo huyết động không ổn định, sốc mất máu hoặc giảm thể tích tuần hoàn nặng dù huyết áp có thể chưa tụt rõ.",
+    hint: "Nhịp tim / HA tâm thu (Ngưỡng >= 0.9)",
+    bloomLevel: "APPLYING",
+    specialty: "Hồi Sức Cấp Cứu"
   }
 ];
 
 export const MOCK_FOLDERS: FolderNode[] = [
   {
     id: "folder_y4_noi",
-    name: "Y4 - Nội Khoa Bệnh Lý",
-    description: "Tài liệu học tập & ngân hàng câu hỏi lâm sàng Nội 1 & 2",
+    name: "Nội Khoa Lâm Sàng (Y4 - Bác Sĩ)",
+    description: "Các module bệnh học Tim mạch, Hô hấp, Tiêu hóa, Thận học theo guideline mới nhất",
     color: "#0284c7",
     icon: "HeartPulse",
+    isSystemMock: true,
     children: [
       {
         id: "folder_cardio",
         name: "Module Tim Mạch",
-        description: "Suy tim, Hội chứng vành cấp, Tăng huyết áp, Rối loạn nhịp",
+        description: "Suy tim HFrEF/HFpEF, Hội chứng vành cấp, Rối loạn nhịp tim",
         color: "#f43f5e",
-        icon: "Activity",
         parentId: "folder_y4_noi",
+        isSystemMock: true,
+        children: [],
         decks: [
           {
             id: "deck_cardio_01",
-            title: "Bộ Đề MCQ Suy Tim & Bệnh Mạch Vành (Chuẩn Bloom)",
-            description: "6 câu hỏi tình huống lâm sàng sâu với đầy đủ 6 mức độ tư duy Bloom",
+            title: "Bộ Đề MCQ Suy Tim & Bệnh Mạch Vành (Demo)",
+            description: "6 ca lâm sàng thực tế phân tích theo 6 mức độ Bloom: Nhớ, Hiểu, Vận dụng, Phân tích, Đánh giá, Sáng tạo",
             type: "MCQ",
             specialty: "Nội Tim Mạch",
             folderId: "folder_cardio",
             questions: MOCK_MCQ_QUESTIONS,
-            itemCount: 6,
+            itemCount: MOCK_MCQ_QUESTIONS.length,
             updatedAt: "2026-08-28",
-          },
-          {
-            id: "deck_ecg_flash",
-            title: "Flashcard Điện Tâm Đồ (ECG) Nâng Cao",
-            description: "Thẻ nhận diện rối loạn nhịp và hội chứng vành cấp",
-            type: "FLASHCARD",
-            specialty: "Nội Tim Mạch",
-            folderId: "folder_cardio",
-            flashcards: MOCK_FLASHCARDS,
-            itemCount: 4,
-            updatedAt: "2026-08-27",
+            isSystemMock: true,
           }
         ]
-      },
-      {
-        id: "folder_respiratory",
-        name: "Module Hô Hấp",
-        description: "Viêm phổi cộng đồng, Hen phế quản, COPD, Tràn dịch màng phổi",
-        color: "#0ea5e9",
-        icon: "Wind",
-        parentId: "folder_y4_noi",
-        decks: [
-          {
-            id: "deck_resp_01",
-            title: "MCQ Viêm Phổi & Kháng Sinh Liệu Pháp",
-            description: "Đánh giá mức độ nặng theo CURB-65 và phác đồ empiric",
-            type: "MCQ",
-            specialty: "Nội Hô Hấp",
-            folderId: "folder_respiratory",
-            itemCount: 15,
-            updatedAt: "2026-08-25",
-          }
-        ]
-      },
-      {
-        id: "folder_gi",
-        name: "Module Tiêu Hóa - Gan Mật",
-        description: "Xơ gan mất bù, Xuất huyết tiêu hóa trên, Viêm tụy cấp",
-        color: "#f59e0b",
-        icon: "Utensils",
-        parentId: "folder_y4_noi",
-        decks: []
       }
-    ]
+    ],
+    decks: []
   },
   {
     id: "folder_pharm",
-    name: "Dược Lý Học & Độc Chất",
-    description: "Cơ chế tác dụng, chỉ định, chống chỉ định, độc tính và tương tác thuốc",
+    name: "Dược Lý Lâm Sàng & Độc Chất Học",
+    description: "Cơ chế tác dụng thuốc, tương tác thuốc nguy hiểm, phác đồ liều theo eGFR",
     color: "#8b5cf6",
     icon: "Pill",
+    isSystemMock: true,
     children: [
       {
         id: "folder_pharm_cardio",
-        name: "Thuốc Tim Mạch & Thận",
-        description: "ACEi, ARB, ARNI, Beta-blocker, SGLT2i, Lợi tiểu",
+        name: "Thuốc Tim Mạch & Cấp Cứu",
+        description: "Thuốc vận mạch, chống loạn nhịp, lợi tiểu, hạ áp",
         color: "#a855f7",
-        icon: "ShieldAlert",
         parentId: "folder_pharm",
+        isSystemMock: true,
+        children: [],
         decks: [
           {
             id: "deck_pharm_01",
-            title: "Flashcard Cơ Chế Thuốc Tim Mạch & Cấp Cứu",
-            description: "Thẻ học lặp lại ngắt quãng Spaced Repetition",
+            title: "Flashcard Cơ Chế Thuốc Tim Mạch & Cấp Cứu (Demo)",
+            description: "Thẻ ghi nhớ cơ chế bệnh học và dược lý 3D hỗ trợ Spaced Repetition",
             type: "FLASHCARD",
             specialty: "Dược Lý Lâm Sàng",
             folderId: "folder_pharm_cardio",
             flashcards: MOCK_FLASHCARDS,
-            itemCount: 4,
+            itemCount: MOCK_FLASHCARDS.length,
             updatedAt: "2026-08-28",
+            isSystemMock: true,
           }
         ]
       }
-    ]
-  },
-  {
-    id: "folder_anatomy",
-    name: "Giải Phẫu & Phôi Thai Học",
-    description: "Giải phẫu định khu, thần kinh sọ, mạch máu và cấu trúc ổ bụng",
-    color: "#10b981",
-    icon: "Layers",
-    children: []
+    ],
+    decks: []
   }
 ];
-

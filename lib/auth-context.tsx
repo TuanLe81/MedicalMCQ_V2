@@ -35,6 +35,9 @@ interface AuthContextType {
   saveUserFolders: (folders: FolderNode[]) => { success: boolean; error?: string };
 }
 
+// Storage version key to auto-migrate and flush stale local storage on client browsers
+const APP_STORAGE_VERSION = "v5.0_clean_dashboard_leaderboard";
+
 // Initial clean Bloom taxonomy stats starting from 0
 const initialCleanBloomStats: Record<BloomLevel, { total: number; correct: number; percentage: number }> = {
   REMEMBERING: { total: 0, correct: 0, percentage: 0 },
@@ -52,9 +55,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [shareRequests, setShareRequests] = useState<FolderShareRequest[]>([]);
 
-  // Initialize from LocalStorage
+  // Initialize from LocalStorage with auto-migration
   useEffect(() => {
     try {
+      const storedVersion = localStorage.getItem("medlearn_storage_version");
+
+      // Auto-flush stale browser cache when a new system version is deployed
+      if (storedVersion !== APP_STORAGE_VERSION) {
+        localStorage.removeItem("medlearn_users");
+        localStorage.removeItem("medlearn_current_user");
+        localStorage.setItem("medlearn_storage_version", APP_STORAGE_VERSION);
+      }
+
       const storedUsersStr = localStorage.getItem("medlearn_users");
       let usersList: UserProfile[] = [];
 
@@ -142,7 +154,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem("medlearn_users", JSON.stringify(defaultUsers));
       } else {
         usersList = JSON.parse(storedUsersStr);
-        // Ensure primary user exists
         const hasTuan = usersList.some(
           (u) => u.email?.toLowerCase() === "leanhtuan812006@gmail.com"
         );
@@ -156,7 +167,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const activeUserStr = localStorage.getItem("medlearn_current_user");
       if (activeUserStr) {
         const parsedUser = JSON.parse(activeUserStr);
-        // Ensure properties exist
         parsedUser.totalCorrectAnswers = parsedUser.totalCorrectAnswers ?? 0;
         parsedUser.streakCount = parsedUser.streakCount ?? 1;
         setUser(parsedUser);
@@ -206,9 +216,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
       if (diffDays === 1) {
-        newStreak += 1; // Consecutive day streak
+        newStreak += 1;
       } else if (diffDays > 1) {
-        newStreak = 1; // Missed streak, reset to 1
+        newStreak = 1;
       }
     } else {
       newStreak = Math.max(1, newStreak);
@@ -220,7 +230,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       lastCheckInDate: todayStr,
     };
 
-    // Save to localStorage
     setUser(updatedUser);
     localStorage.setItem("medlearn_current_user", JSON.stringify(updatedUser));
 
@@ -253,7 +262,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const currentCorrect = (user.totalCorrectAnswers || 0) + correctCount;
     const newAccuracy = currentTotalQ > 0 ? Math.round((currentCorrect / currentTotalQ) * 100) : 0;
 
-    // Merge Bloom Taxonomy Stats
     const updatedBloom = { ...user.bloomTaxonomyStats };
     Object.keys(bloomMatrix).forEach((key) => {
       const bKey = key as BloomLevel;
@@ -298,7 +306,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const usersStr = localStorage.getItem("medlearn_users");
       const list: UserProfile[] = usersStr ? JSON.parse(usersStr) : [];
 
-      // Calculate Rank Score: (Streak * 10) + (Correct Answers * 5)
       const mapped: LeaderboardEntry[] = list.map((u) => {
         const correct = u.totalCorrectAnswers || 0;
         const streak = u.streakCount || 0;
@@ -322,10 +329,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
       });
 
-      // Sort descending by rankScore
       mapped.sort((a, b) => b.rankScore - a.rankScore);
 
-      // Assign Rank index
       return mapped.map((entry, idx) => ({
         ...entry,
         rank: idx + 1,
@@ -341,7 +346,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const usersList: UserProfile[] = usersStr ? JSON.parse(usersStr) : [];
       const cleanIdentity = identity.trim().toLowerCase();
 
-      // Match user
       const found = usersList.find(
         (u) =>
           (u.email?.toLowerCase() === cleanIdentity ||
@@ -401,7 +405,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         medicalSchool: data.medicalSchool || "Đại học Y Dược TP.HCM",
         yearOfStudy: data.yearOfStudy || 4,
         streakCount: 1,
-        lastCheckInDate: new Date().toISOString().split("T")[0], // Checked in on register
+        lastCheckInDate: new Date().toISOString().split("T")[0],
         totalQuestionsAnswered: 0,
         totalCorrectAnswers: 0,
         overallAccuracy: 0,
@@ -410,8 +414,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       usersList.push(newUser);
       localStorage.setItem("medlearn_users", JSON.stringify(usersList));
-
-      // Initialize EMPTY folders for newly registered users
       localStorage.setItem(`medlearn_folders_${newUserId}`, JSON.stringify([]));
 
       setUser(newUser);
@@ -427,14 +429,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("medlearn_current_user");
   };
 
-  // Verify if account exists for Forgot Password flow
   const verifyAccountExists = (identity: string): { success: boolean; user?: UserProfile; error?: string } => {
     try {
       const cleanIdentity = identity.toLowerCase().trim();
       const usersStr = localStorage.getItem("medlearn_users");
       let usersList: UserProfile[] = usersStr ? JSON.parse(usersStr) : [];
 
-      // If checking for leanhtuan812006@gmail.com, ensure it always returns successfully!
       if (cleanIdentity === "leanhtuan812006@gmail.com" || cleanIdentity === "leanhtuan") {
         let tuan = usersList.find(
           (u) =>
@@ -484,7 +484,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Reset Password Function
   const resetPassword = (identity: string, newPass: string): { success: boolean; error?: string } => {
     try {
       const cleanIdentity = identity.toLowerCase().trim();
@@ -524,7 +523,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       localStorage.setItem("medlearn_users", JSON.stringify(usersList));
 
-      // If user is currently logged in, sync session
       if (user && (user.id === target.id || user.email === target.email)) {
         setUser({ ...user, password: newPass });
         localStorage.setItem("medlearn_current_user", JSON.stringify({ ...user, password: newPass }));
@@ -536,7 +534,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Get folders for current user (EMPTY for new accounts, MOCK for demo)
   const getUserFolders = (): FolderNode[] => {
     if (!user) return [];
     if (user.isDemo) {
@@ -546,7 +543,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return userFoldersStr ? JSON.parse(userFoldersStr) : [];
   };
 
-  // Save folders for current user (Blocked for demo accounts!)
   const saveUserFolders = (folders: FolderNode[]): { success: boolean; error?: string } => {
     if (!user) return { success: false, error: "Chưa đăng nhập!" };
     if (user.isDemo) {
@@ -559,7 +555,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   };
 
-  // Send Folder Share Request
   const sendShareRequest = (folder: FolderNode, target: string): { success: boolean; error?: string } => {
     if (!user) return { success: false, error: "Vui lòng đăng nhập để chia sẻ thư mục!" };
     if (user.isDemo) {
@@ -601,7 +596,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   };
 
-  // Respond to Share Request (Accept or Decline)
   const respondShareRequest = (requestId: string, accept: boolean) => {
     if (!user) return;
     const storedShares = localStorage.getItem("medlearn_share_requests");
