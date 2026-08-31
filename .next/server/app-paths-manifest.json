@@ -1,9 +1,13 @@
 {
-  "/page": "app/page.js",
-  "/folders/page": "app/folders/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
   "/dashboard/page": "app/dashboard/page.js",
-  "/quiz/[deckId]/page": "app/quiz/[deckId]/page.js",
-  "/create/page": "app/create/page.js",
+  "/ai-tutor/page": "app/ai-tutor/page.js",
+  "/folders/page": "app/folders/page.js",
   "/flashcards/[deckId]/page": "app/flashcards/[deckId]/page.js",
-  "/ai-tutor/page": "app/ai-tutor/page.js"
+  "/forgot-password/page": "app/forgot-password/page.js",
+  "/quiz/[deckId]/page": "app/quiz/[deckId]/page.js",
+  "/page": "app/page.js",
+  "/login/page": "app/login/page.js",
+  "/register/page": "app/register/page.js",
+  "/create/page": "app/create/page.js"
 }
