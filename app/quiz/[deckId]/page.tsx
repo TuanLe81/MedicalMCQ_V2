@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { MOCK_MCQ_QUESTIONS } from "@/lib/mock-data";
@@ -8,13 +8,10 @@ import { MCQQuestion, QuizResult } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 import { AuthGuard } from "@/components/auth-guard";
 import { QuestionCard } from "@/components/mcq/question-card";
-import { QuizTimer } from "@/components/mcq/quiz-timer";
 import { QuizResultModal } from "@/components/mcq/quiz-result-modal";
-import { calculateBloomMatrix } from "@/lib/utils";
+import { calculateBloomMatrix, formatTime } from "@/lib/utils";
 import {
   ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
   Send,
   RotateCcw,
   Sparkles,
@@ -24,6 +21,14 @@ import {
   FolderTree,
   FileQuestion,
   Shuffle,
+  Pause,
+  Play,
+  CheckCircle2,
+  AlertCircle,
+  ListOrdered,
+  ChevronUp,
+  Layers,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -37,22 +42,26 @@ export default function QuizPage() {
   const [isLoadingDeck, setIsLoadingDeck] = useState(true);
 
   // Configuration States: Custom Time Settings
-  const [timerMinutes, setTimerMinutes] = useState<number>(10);
-  const [customInputMinutes, setCustomInputMinutes] = useState<string>("10");
+  const [timerMinutes, setTimerMinutes] = useState<number>(15);
+  const [customInputMinutes, setCustomInputMinutes] = useState<string>("15");
   const [isUnlimitedTime, setIsUnlimitedTime] = useState<boolean>(false);
   const [isExamMode, setIsExamMode] = useState<boolean>(false); // false = instant feedback; true = test mode
   const [showTimeModal, setShowTimeModal] = useState<boolean>(false);
   const [shuffleToast, setShuffleToast] = useState<string | null>(null);
 
   // In-Quiz States
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
   const [userAnswers, setUserAnswers] = useState<{ [index: number]: number }>({});
   const [hasSubmitted, setHasSubmitted] = useState<boolean>(false);
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const [reviewMode, setReviewMode] = useState<boolean>(false);
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(15 * 60);
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
 
-  // Load deck logic: For demo users, mock data is available; for personal users, only custom created/imported decks or empty
+  // Pause States
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [mobilePaletteOpen, setMobilePaletteOpen] = useState<boolean>(false);
+
+  // Load deck logic
   useEffect(() => {
     try {
       const storedCustom = localStorage.getItem("medlearn_custom_decks");
@@ -81,19 +90,41 @@ export default function QuizPage() {
     }
   }, [params?.deckId, user]);
 
+  // Timer Tick Effect (Freezes when isPaused is true)
+  useEffect(() => {
+    if (hasSubmitted || isPaused || isLoadingDeck || questions.length === 0) return;
+
+    const interval = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+
+      if (!isUnlimitedTime) {
+        setSecondsRemaining((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            handleSubmitQuiz();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [hasSubmitted, isPaused, isUnlimitedTime, isLoadingDeck, questions.length]);
+
   // Handle Option Click
-  const handleSelectOption = (optionIndex: number) => {
-    if (hasSubmitted && !isExamMode) return;
+  const handleSelectOption = (questionIdx: number, optionIndex: number) => {
+    if (isPaused || (hasSubmitted && !isExamMode)) return;
 
     setUserAnswers((prev) => ({
       ...prev,
-      [currentQuestionIndex]: optionIndex,
+      [questionIdx]: optionIndex,
     }));
   };
 
   // RANDOM SHUFFLE QUESTIONS & CHOICES ALGORITHM (Fisher-Yates)
   const handleShuffleQuiz = () => {
-    if (hasSubmitted || questions.length === 0) return;
+    if (hasSubmitted || isPaused || questions.length === 0) return;
 
     // 1. Shuffle option choices in each question and accurately re-map the correctIndex
     const shuffledQuestions = questions.map((q) => {
@@ -121,9 +152,32 @@ export default function QuizPage() {
 
     setQuestions(shuffledQuestions);
     setUserAnswers({});
-    setCurrentQuestionIndex(0);
-    setShuffleToast("Đã xáo trộn ngẫu nhiên thứ tự câu hỏi và các đáp án A, B, C, D! 🔀");
+    setShuffleToast("Đã xáo trộn ngẫu nhiên toàn bộ danh sách câu hỏi & đáp án! 🔀");
     setTimeout(() => setShuffleToast(null), 3000);
+  };
+
+  // Toggle Pause State
+  const handleTogglePause = () => {
+    if (hasSubmitted) return;
+
+    if (!isPaused) {
+      // Save current answers to localStorage on pause
+      try {
+        localStorage.setItem(`quiz_temp_answers_${params?.deckId}`, JSON.stringify(userAnswers));
+      } catch (e) {}
+      setIsPaused(true);
+    } else {
+      setIsPaused(false);
+    }
+  };
+
+  // Smooth Scroll to Question
+  const scrollToQuestion = (idx: number) => {
+    const el = document.getElementById(`question-card-${idx}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    setMobilePaletteOpen(false);
   };
 
   // Submit and Calculate Score + Bloom Matrix + Record to Leaderboard
@@ -149,7 +203,7 @@ export default function QuizPage() {
       correctCount: correct,
       incorrectCount: incorrect,
       scorePercentage: percentage,
-      timeSpentSeconds: isUnlimitedTime ? elapsedSeconds : timerMinutes * 60,
+      timeSpentSeconds: isUnlimitedTime ? elapsedSeconds : timerMinutes * 60 - secondsRemaining,
       bloomMatrix,
       userAnswers,
     };
@@ -159,6 +213,7 @@ export default function QuizPage() {
 
     setQuizResult(result);
     setHasSubmitted(true);
+    setIsPaused(false);
   };
 
   const handleRetake = () => {
@@ -166,8 +221,9 @@ export default function QuizPage() {
     setHasSubmitted(false);
     setQuizResult(null);
     setReviewMode(false);
-    setCurrentQuestionIndex(0);
     setElapsedSeconds(0);
+    setSecondsRemaining(timerMinutes * 60);
+    setIsPaused(false);
   };
 
   const handleReview = () => {
@@ -178,20 +234,21 @@ export default function QuizPage() {
   const applyCustomTime = (mins: number) => {
     const validMins = Math.max(1, Math.min(300, mins));
     setTimerMinutes(validMins);
+    setSecondsRemaining(validMins * 60);
     setCustomInputMinutes(String(validMins));
     setIsUnlimitedTime(false);
     setShowTimeModal(false);
   };
 
-  const currentQ = questions[currentQuestionIndex];
   const answeredCount = Object.keys(userAnswers).length;
+  const progressPercent = questions.length > 0 ? Math.round((answeredCount / questions.length) * 100) : 0;
 
   return (
     <AuthGuard
       featureTitle="Phòng Thi & Luyện Trắc Nghiệm MCQ"
       featureDescription="Vui lòng đăng nhập để tham gia làm bài thi thử, bấm giờ hẹn giờ và lưu lại ma trận đánh giá năng lực Bloom."
     >
-      <div className="container mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+      <div className="container mx-auto max-w-7xl px-3 sm:px-6 py-6 sm:py-8 space-y-6">
         {/* EMPTY DECK STATE - REDIRECT TO FOLDER TREE */}
         {!isLoadingDeck && questions.length === 0 ? (
           <div className="p-10 sm:p-16 rounded-3xl border-2 border-dashed border-border bg-card/60 text-center space-y-6">
@@ -231,56 +288,83 @@ export default function QuizPage() {
               <div className="flex items-center gap-3">
                 <Link
                   href="/folders"
-                  className="p-2 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all"
+                  className="p-2.5 rounded-2xl border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all"
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </Link>
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 uppercase">
-                      MCQ Y Khoa ({questions.length} câu)
+                      Luyện Tập Cuộn ({questions.length} câu)
                     </span>
                     <span className="text-xs text-muted-foreground">Chuẩn Thang Đo Bloom</span>
                   </div>
-                  <h1 className="text-lg sm:text-xl font-bold text-foreground leading-tight">
+                  <h1 className="text-lg sm:text-2xl font-black text-foreground leading-tight">
                     {deckTitle}
                   </h1>
                 </div>
               </div>
 
-              {/* Action Ribbon: Shuffle & Timer */}
-              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end">
-                {/* Shuffle Button */}
-                {!hasSubmitted && !reviewMode && (
+              {/* Mode Switcher */}
+              {!hasSubmitted && !reviewMode && (
+                <div className="flex items-center gap-1.5 p-1 rounded-xl bg-muted/60 border border-border text-xs">
                   <button
                     type="button"
-                    onClick={handleShuffleQuiz}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 text-xs font-bold border border-sky-200 dark:border-sky-800 transition-all hover:scale-105 shadow-xs"
-                    title="Xáo trộn ngẫu nhiên cả thứ tự câu hỏi và các đáp án A, B, C, D"
+                    onClick={() => setIsExamMode(false)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg font-bold transition-all",
+                      !isExamMode
+                        ? "bg-sky-600 text-white shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
                   >
-                    <Shuffle className="h-3.5 w-3.5" />
-                    <span>Xáo Trộn Đề</span>
+                    Giải Thích Tức Thì
                   </button>
-                )}
-
-                {/* Timer Config Display */}
-                {!hasSubmitted && (
-                  <div className="w-48 sm:w-52">
-                    <QuizTimer
-                      initialSeconds={timerMinutes * 60}
-                      isActive={!hasSubmitted}
-                      isUnlimited={isUnlimitedTime}
-                      onTimeUp={handleSubmitQuiz}
-                      onTimerTick={(s) => setElapsedSeconds(s)}
-                    />
-                  </div>
-                )}
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsExamMode(true)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg font-bold transition-all",
+                      isExamMode
+                        ? "bg-sky-600 text-white shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Chế Độ Thi Thử
+                  </button>
+                </div>
+              )}
             </div>
+
+            {/* PAUSE BANNER */}
+            {isPaused && (
+              <div className="p-4 rounded-3xl bg-amber-500/10 border-2 border-amber-500 text-amber-900 dark:text-amber-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in zoom-in-95">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-white font-bold shadow-md">
+                    <Pause className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm">Bài Thi Đang Ở Trạng Thái Tạm Dừng</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Thời gian đã đóng băng. Các câu hỏi đã chọn ({answeredCount}/{questions.length}) được lưu an toàn. Thao tác chọn đáp án đang bị khóa.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleTogglePause}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all hover:scale-105"
+                >
+                  <Play className="h-4 w-4 fill-white" />
+                  <span>Tiếp Tục Làm Bài</span>
+                </button>
+              </div>
+            )}
 
             {/* Shuffle Toast Notification */}
             {shuffleToast && (
-              <div className="p-3 rounded-2xl bg-sky-600 text-white text-xs font-bold shadow-lg shadow-sky-600/20 flex items-center justify-between gap-2 animate-in fade-in zoom-in-95">
+              <div className="p-3.5 rounded-2xl bg-sky-600 text-white text-xs font-bold shadow-lg shadow-sky-600/20 flex items-center justify-between gap-2 animate-in fade-in zoom-in-95">
                 <div className="flex items-center gap-2">
                   <Shuffle className="h-4 w-4 shrink-0" />
                   <span>{shuffleToast}</span>
@@ -289,96 +373,323 @@ export default function QuizPage() {
               </div>
             )}
 
-            {/* Mode Switcher & Custom Timer Setting Ribbon */}
-            {!hasSubmitted && !reviewMode && (
-              <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-muted/40 border border-border text-xs">
-                {/* Display Mode */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-semibold text-muted-foreground">Chế độ:</span>
-                  <button
-                    type="button"
-                    onClick={() => setIsExamMode(false)}
-                    className={cn(
-                      "px-2.5 py-1 rounded-lg font-bold transition-all",
-                      !isExamMode
-                        ? "bg-sky-600 text-white shadow-xs"
-                        : "bg-background text-muted-foreground border border-border"
-                    )}
-                  >
-                    Hiện Viền Xanh/Đỏ &amp; Giải Thích Ngay
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsExamMode(true)}
-                    className={cn(
-                      "px-2.5 py-1 rounded-lg font-bold transition-all",
-                      isExamMode
-                        ? "bg-sky-600 text-white shadow-xs"
-                        : "bg-background text-muted-foreground border border-border"
-                    )}
-                  >
-                    Thi Thử (Hiện sau khi nộp)
-                  </button>
-                </div>
+            {/* MAIN TWO-COLUMN LAYOUT: QUESTIONS LIST (LEFT) + STICKY PALETTE (RIGHT) */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* LEFT COLUMN: SCROLLABLE FULL QUESTIONS LIST (col-span-8) */}
+              <div className="lg:col-span-8 space-y-6">
+                {questions.map((q, idx) => (
+                  <QuestionCard
+                    key={q.id || idx}
+                    question={q}
+                    questionIndex={idx}
+                    totalQuestions={questions.length}
+                    selectedOption={userAnswers[idx] ?? null}
+                    onSelectOption={(optIdx) => handleSelectOption(idx, optIdx)}
+                    isExamMode={isExamMode}
+                    hasSubmitted={hasSubmitted || reviewMode}
+                    isPaused={isPaused}
+                    onAskAI={(quest) => {
+                      router.push(`/ai-tutor?questionId=${quest.id}`);
+                    }}
+                  />
+                ))}
 
-                {/* Custom Time Control Section */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="font-semibold text-muted-foreground">Hẹn giờ:</span>
-
-                  {[5, 15, 30, 45].map((mins) => (
+                {/* Bottom Finish Prompt */}
+                <div className="p-6 sm:p-8 rounded-3xl border border-border bg-card/60 text-center space-y-4">
+                  <h3 className="font-bold text-base text-foreground">
+                    Bạn đã xem hết {questions.length} câu hỏi trong bộ đề
+                  </h3>
+                  <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                    Kiểm tra lại thanh Palette bên phải để đảm bảo không bỏ sót câu hỏi trước khi nộp bài.
+                  </p>
+                  {!hasSubmitted && !reviewMode && (
                     <button
-                      key={mins}
                       type="button"
-                      onClick={() => applyCustomTime(mins)}
-                      className={cn(
-                        "px-2 py-0.5 rounded-md font-bold transition-all",
-                        !isUnlimitedTime && timerMinutes === mins
-                          ? "bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800"
-                          : "text-muted-foreground hover:bg-muted"
-                      )}
+                      onClick={handleSubmitQuiz}
+                      className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md shadow-sky-600/20 transition-all hover:scale-105"
                     >
-                      {mins}p
+                      <Send className="h-4 w-4" />
+                      <span>Nộp Bài Thi ({answeredCount}/{questions.length})</span>
                     </button>
-                  ))}
-
-                  {/* Custom Minutes Input Button */}
-                  <button
-                    type="button"
-                    onClick={() => setShowTimeModal(true)}
-                    className={cn(
-                      "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-bold transition-all border",
-                      !isUnlimitedTime && ![5, 15, 30, 45].includes(timerMinutes)
-                        ? "bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border-sky-300"
-                        : "border-border text-muted-foreground hover:bg-muted"
-                    )}
-                  >
-                    <Sliders className="h-3 w-3" />
-                    <span>
-                      {!isUnlimitedTime && ![5, 15, 30, 45].includes(timerMinutes)
-                        ? `${timerMinutes} phút`
-                        : "Tùy chỉnh..."}
-                    </span>
-                  </button>
-
-                  {/* Unlimited Time Toggle */}
-                  <button
-                    type="button"
-                    onClick={() => setIsUnlimitedTime(!isUnlimitedTime)}
-                    className={cn(
-                      "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-bold transition-all",
-                      isUnlimitedTime
-                        ? "bg-indigo-600 text-white shadow-xs"
-                        : "border border-border text-muted-foreground hover:bg-muted"
-                    )}
-                    title="Luyện tập không giới hạn thời gian"
-                  >
-                    <InfinityIcon className="h-3.5 w-3.5" />
-                    <span>Tự do</span>
-                  </button>
+                  )}
                 </div>
               </div>
-            )}
+
+              {/* RIGHT COLUMN: STICKY MCQ ACTION PALETTE (col-span-4) - DESKTOP */}
+              <div className="hidden lg:block lg:col-span-4 sticky top-20 space-y-4">
+                <div className="p-6 rounded-3xl border border-border bg-card shadow-lg space-y-5">
+                  {/* Timer & Controls Header */}
+                  <div className="space-y-3 border-b border-border/60 pb-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <Clock className="h-3.5 w-3.5 text-sky-600" />
+                        <span>Thời Gian Làm Bài</span>
+                      </span>
+                      {!hasSubmitted && !isPaused && (
+                        <button
+                          type="button"
+                          onClick={() => setShowTimeModal(true)}
+                          className="text-[11px] font-bold text-sky-600 hover:underline flex items-center gap-1"
+                        >
+                          <Sliders className="h-3 w-3" />
+                          <span>Hẹn giờ</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Big Digital Clock */}
+                    <div className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-br from-sky-50 to-indigo-50 dark:from-sky-950/40 dark:to-indigo-950/40 border border-sky-200 dark:border-sky-900">
+                      <div className="space-y-0.5">
+                        <div className="text-2xl font-mono font-black text-sky-700 dark:text-sky-300">
+                          {isUnlimitedTime
+                            ? formatTime(elapsedSeconds)
+                            : formatTime(secondsRemaining)}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground font-semibold">
+                          {isUnlimitedTime ? "Thời gian tự do" : "Thời gian còn lại"}
+                        </span>
+                      </div>
+
+                      {/* Action Buttons inside Timer */}
+                      {!hasSubmitted && !reviewMode && (
+                        <div className="flex items-center gap-1.5">
+                          {/* Pause Button */}
+                          <button
+                            type="button"
+                            onClick={handleTogglePause}
+                            className={cn(
+                              "flex items-center gap-1 px-3 py-1.5 rounded-xl font-bold text-xs transition-all shadow-xs",
+                              isPaused
+                                ? "bg-amber-600 text-white"
+                                : "bg-card border border-border hover:bg-muted text-foreground"
+                            )}
+                            title={isPaused ? "Tiếp tục làm bài" : "Tạm dừng bài thi"}
+                          >
+                            {isPaused ? <Play className="h-3.5 w-3.5 fill-white" /> : <Pause className="h-3.5 w-3.5" />}
+                            <span>{isPaused ? "Tiếp Tục" : "Tạm Dừng"}</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Progress Stats */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold">
+                      <span className="text-foreground">Tiến độ làm bài:</span>
+                      <span className="text-sky-600 dark:text-sky-400">
+                        {answeredCount} / {questions.length} câu ({progressPercent}%)
+                      </span>
+                    </div>
+
+                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-sky-500 to-indigo-600 transition-all duration-500"
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick Question Navigation Palette */}
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-muted-foreground uppercase tracking-wider text-[11px]">
+                        Bảng Câu Hỏi (Palette)
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">Nhấp để cuộn nhanh</span>
+                    </div>
+
+                    <div className="grid grid-cols-5 gap-2 max-h-56 overflow-y-auto p-1">
+                      {questions.map((q, idx) => {
+                        const isAnswered = userAnswers[idx] !== undefined;
+                        const isCorrect = userAnswers[idx] === q.correctIndex;
+
+                        let style = "bg-muted/70 text-muted-foreground border-border hover:bg-muted";
+
+                        if ((hasSubmitted || reviewMode || !isExamMode) && isAnswered) {
+                          style = isCorrect
+                            ? "bg-emerald-600 text-white border-emerald-700 shadow-xs font-bold"
+                            : "bg-rose-600 text-white border-rose-700 shadow-xs font-bold";
+                        } else if (isAnswered) {
+                          style = "bg-sky-600 text-white border-sky-700 shadow-xs font-bold";
+                        }
+
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => scrollToQuestion(idx)}
+                            className={cn(
+                              "flex flex-col items-center justify-center py-2.5 rounded-xl border text-xs font-bold transition-all hover:scale-105",
+                              style
+                            )}
+                            title={`Cuộn đến Câu ${idx + 1}`}
+                          >
+                            <span>{idx + 1}</span>
+                            <span className="text-[9px] opacity-80">
+                              {isAnswered ? "✓" : "•"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Palette Legend */}
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 px-1">
+                      <div className="flex items-center gap-1.5">
+                        <div className="h-2.5 w-2.5 rounded-full bg-sky-600" />
+                        <span>Đã làm</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="h-2.5 w-2.5 rounded-full bg-muted border border-border" />
+                        <span>Chưa làm</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Primary Actions: Shuffle & Submit */}
+                  <div className="space-y-2 pt-2 border-t border-border/60">
+                    {!hasSubmitted && !reviewMode ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={isPaused}
+                          onClick={handleShuffleQuiz}
+                          className="w-full py-2.5 rounded-2xl border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 hover:bg-sky-100 text-sky-700 dark:text-sky-300 font-bold text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                        >
+                          <Shuffle className="h-4 w-4" />
+                          <span>Xáo Trộn Câu Hỏi &amp; Đáp Án</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleSubmitQuiz}
+                          className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md shadow-sky-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                        >
+                          <Send className="h-4 w-4" />
+                          <span>Nộp Bài ({answeredCount}/{questions.length})</span>
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleRetake}
+                        className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                        <span>Làm Lại Bộ Đề Này</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* FLOATING ACTION BAR FOR MOBILE / TABLET (Tối ưu thiết bị di động) */}
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 p-3 bg-background/95 backdrop-blur-md border-t border-border shadow-2xl">
+              <div className="container mx-auto flex items-center justify-between gap-2">
+                {/* Timer Display */}
+                <div className="flex items-center gap-2 font-mono font-bold text-xs sm:text-sm text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 px-3 py-2 rounded-xl border border-sky-200 dark:border-sky-800">
+                  <Clock className="h-3.5 w-3.5" />
+                  <span>
+                    {isUnlimitedTime ? formatTime(elapsedSeconds) : formatTime(secondsRemaining)}
+                  </span>
+                </div>
+
+                {/* Quick Toggle Palette Drawer */}
+                <button
+                  type="button"
+                  onClick={() => setMobilePaletteOpen(!mobilePaletteOpen)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card font-bold text-xs text-foreground"
+                >
+                  <ListOrdered className="h-4 w-4 text-sky-600" />
+                  <span>Palette ({answeredCount}/{questions.length})</span>
+                  <ChevronUp className={cn("h-3.5 w-3.5 transition-transform", mobilePaletteOpen && "rotate-180")} />
+                </button>
+
+                {/* Pause Button */}
+                {!hasSubmitted && !reviewMode && (
+                  <button
+                    type="button"
+                    onClick={handleTogglePause}
+                    className={cn(
+                      "p-2 rounded-xl border font-bold text-xs transition-all",
+                      isPaused ? "bg-amber-600 text-white" : "bg-card border-border text-foreground"
+                    )}
+                  >
+                    {isPaused ? <Play className="h-4 w-4 fill-white" /> : <Pause className="h-4 w-4" />}
+                  </button>
+                )}
+
+                {/* Submit button */}
+                {!hasSubmitted && !reviewMode ? (
+                  <button
+                    type="button"
+                    onClick={handleSubmitQuiz}
+                    className="flex-1 py-2 px-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    <span>Nộp Bài</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleRetake}
+                    className="flex-1 py-2 px-3 rounded-xl bg-indigo-600 text-white font-bold text-xs flex items-center justify-center gap-1.5"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span>Làm Lại</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Expandable Mobile Palette Drawer */}
+              {mobilePaletteOpen && (
+                <div className="pt-3 mt-3 border-t border-border/80 space-y-3 animate-in slide-in-from-bottom-2">
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span>Chọn câu để cuộn nhanh:</span>
+                    <button
+                      type="button"
+                      disabled={isPaused}
+                      onClick={handleShuffleQuiz}
+                      className="text-sky-600 dark:text-sky-400 font-bold flex items-center gap-1"
+                    >
+                      <Shuffle className="h-3 w-3" />
+                      <span>Xáo câu</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-6 gap-1.5 max-h-40 overflow-y-auto">
+                    {questions.map((q, idx) => {
+                      const isAnswered = userAnswers[idx] !== undefined;
+                      const isCorrect = userAnswers[idx] === q.correctIndex;
+
+                      let style = "bg-muted text-muted-foreground";
+
+                      if ((hasSubmitted || reviewMode || !isExamMode) && isAnswered) {
+                        style = isCorrect ? "bg-emerald-600 text-white" : "bg-rose-600 text-white";
+                      } else if (isAnswered) {
+                        style = "bg-sky-600 text-white font-bold";
+                      }
+
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => scrollToQuestion(idx)}
+                          className={cn(
+                            "py-2 rounded-lg border border-border/80 text-xs font-bold flex items-center justify-center",
+                            style
+                          )}
+                        >
+                          {idx + 1}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Custom Time Modal */}
             {showTimeModal && (
@@ -430,7 +741,7 @@ export default function QuizPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => applyCustomTime(Number(customInputMinutes) || 10)}
+                      onClick={() => applyCustomTime(Number(customInputMinutes) || 15)}
                       className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-xs"
                     >
                       Áp Dụng Hẹn Giờ
@@ -439,105 +750,6 @@ export default function QuizPage() {
                 </div>
               </div>
             )}
-
-            {/* Main Question Component */}
-            {currentQ && (
-              <QuestionCard
-                question={currentQ}
-                questionIndex={currentQuestionIndex}
-                totalQuestions={questions.length}
-                selectedOption={userAnswers[currentQuestionIndex] ?? null}
-                onSelectOption={handleSelectOption}
-                isExamMode={isExamMode}
-                hasSubmitted={hasSubmitted || reviewMode}
-                onAskAI={(q) => {
-                  router.push(`/ai-tutor?questionId=${q.id}`);
-                }}
-              />
-            )}
-
-            {/* Bottom Navigation & Question Palette */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl border border-border bg-card shadow-xs">
-              {/* Previous / Next buttons */}
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <button
-                  type="button"
-                  disabled={currentQuestionIndex === 0}
-                  onClick={() => setCurrentQuestionIndex((prev) => Math.max(0, prev - 1))}
-                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl border border-border bg-background hover:bg-muted disabled:opacity-40 text-xs font-semibold text-foreground transition-all"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  <span>Câu trước</span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={currentQuestionIndex === questions.length - 1}
-                  onClick={() => setCurrentQuestionIndex((prev) => Math.min(questions.length - 1, prev + 1))}
-                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl border border-border bg-background hover:bg-muted disabled:opacity-40 text-xs font-semibold text-foreground transition-all"
-                >
-                  <span>Câu tiếp</span>
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/* Question Numbers Quick Palette */}
-              <div className="flex items-center gap-1.5 flex-wrap justify-center max-w-md overflow-x-auto p-1">
-                {questions.map((q, idx) => {
-                  const isAnswered = userAnswers[idx] !== undefined;
-                  const isCurrent = idx === currentQuestionIndex;
-                  const isCorrect = userAnswers[idx] === q.correctIndex;
-
-                  let badgeStyle = "bg-muted text-muted-foreground border-border";
-
-                  if ((hasSubmitted || reviewMode || !isExamMode) && isAnswered) {
-                    badgeStyle = isCorrect
-                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-400 font-bold"
-                      : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border-rose-400 font-bold";
-                  } else if (isAnswered) {
-                    badgeStyle = "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border-sky-400 font-bold";
-                  }
-
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setCurrentQuestionIndex(idx)}
-                      className={cn(
-                        "flex h-8 w-8 items-center justify-center rounded-xl text-xs font-bold border transition-all",
-                        badgeStyle,
-                        isCurrent && "ring-2 ring-sky-500 ring-offset-2 scale-110 shadow-xs"
-                      )}
-                    >
-                      {idx + 1}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Submit Quiz Action Button */}
-              <div className="w-full sm:w-auto">
-                {!hasSubmitted && !reviewMode ? (
-                  <button
-                    type="button"
-                    onClick={handleSubmitQuiz}
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-sky-600/20 transition-all"
-                  >
-                    <Send className="h-4 w-4" />
-                    <span>Nộp Bài ({answeredCount}/{questions.length})</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleRetake}
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all"
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                    <span>Làm Lại Từ Đầu</span>
-                  </button>
-                )}
-              </div>
-            </div>
 
             {/* Quiz Result Modal */}
             {quizResult && (

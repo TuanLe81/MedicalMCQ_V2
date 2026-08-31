@@ -3,7 +3,7 @@
 import React from "react";
 import { MCQQuestion } from "@/types";
 import { BloomBadge } from "./bloom-badge";
-import { CheckCircle2, XCircle, FileText, Sparkles, AlertCircle, HelpCircle } from "lucide-react";
+import { CheckCircle2, XCircle, FileText, Sparkles, AlertCircle, HelpCircle, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface QuestionCardProps {
@@ -14,6 +14,7 @@ interface QuestionCardProps {
   onSelectOption: (optionIndex: number) => void;
   isExamMode?: boolean; // If true, immediate feedback is revealed only on submit; if false (study mode), revealed immediately
   hasSubmitted?: boolean;
+  isPaused?: boolean;
   onAskAI?: (question: MCQQuestion) => void;
 }
 
@@ -25,13 +26,22 @@ export function QuestionCard({
   onSelectOption,
   isExamMode = false,
   hasSubmitted = false,
+  isPaused = false,
   onAskAI,
 }: QuestionCardProps) {
   const showFeedback = !isExamMode ? selectedOption !== null : hasSubmitted;
   const optionLabels = ["A", "B", "C", "D", "E"];
 
   return (
-    <div className="flex flex-col gap-5 p-6 sm:p-8 rounded-3xl border border-border bg-card shadow-sm transition-all">
+    <div
+      id={`question-card-${questionIndex}`}
+      className={cn(
+        "flex flex-col gap-5 p-6 sm:p-8 rounded-3xl border transition-all scroll-mt-24",
+        isPaused
+          ? "border-amber-200 dark:border-amber-900/60 bg-card/70 opacity-90 shadow-sm"
+          : "border-border bg-card shadow-sm hover:border-sky-200 dark:hover:border-sky-800"
+      )}
+    >
       {/* Header: Question Number + Bloom Level + Difficulty */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4">
         <div className="flex items-center gap-2.5">
@@ -41,6 +51,12 @@ export function QuestionCard({
           <span className="text-xs font-semibold text-muted-foreground">
             Câu hỏi {questionIndex + 1} / {totalQuestions}
           </span>
+          {isPaused && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 border border-amber-300">
+              <Lock className="h-3 w-3" />
+              <span>Đang Tạm Dừng</span>
+            </span>
+          )}
         </div>
 
         {/* Bloom Taxonomy Tag */}
@@ -116,11 +132,15 @@ export function QuestionCard({
             }
           }
 
+          if (isPaused) {
+            optionStyle += " cursor-not-allowed opacity-75";
+          }
+
           return (
             <button
               key={idx}
               type="button"
-              disabled={showFeedback && !isExamMode}
+              disabled={isPaused || (showFeedback && !isExamMode)}
               onClick={() => onSelectOption(idx)}
               className={cn(
                 "group relative flex items-start gap-3.5 p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer disabled:cursor-default",
