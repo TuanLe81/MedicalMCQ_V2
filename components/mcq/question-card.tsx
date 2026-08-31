@@ -28,8 +28,6 @@ export function QuestionCard({
   onAskAI,
 }: QuestionCardProps) {
   const showFeedback = !isExamMode ? selectedOption !== null : hasSubmitted;
-  const isAnswered = selectedOption !== null;
-
   const optionLabels = ["A", "B", "C", "D", "E"];
 
   return (
@@ -93,6 +91,9 @@ export function QuestionCard({
           const isSelected = selectedOption === idx;
           const isCorrectAnswer = idx === question.correctIndex;
 
+          // Strip any hardcoded "A. ", "B. ", "1. " prefix so it displays cleanly when shuffled
+          const cleanOptionText = optionText.replace(/^[A-Ea-e1-5][\.\:\)\-]\s*/, "");
+
           let optionStyle =
             "border-border/80 bg-background hover:bg-muted/50 hover:border-sky-300 dark:hover:border-sky-700";
           let labelStyle = "bg-muted text-muted-foreground";
@@ -139,7 +140,7 @@ export function QuestionCard({
               {/* Option Text */}
               <div className="flex-1 pt-0.5">
                 <span className="text-sm font-medium leading-relaxed">
-                  {optionText}
+                  {cleanOptionText}
                 </span>
               </div>
 
@@ -159,46 +160,45 @@ export function QuestionCard({
         })}
       </div>
 
-      {/* Explanation & Clinical Rationale Box (Revealed upon answering) */}
+      {/* Immediate Clinical Rationale & Explanation (Study Mode) */}
       {showFeedback && (
-        <div className="mt-2 p-5 rounded-2xl border border-border bg-muted/30 dark:bg-muted/10 space-y-3 animate-in fade-in-50 slide-in-from-top-2">
+        <div
+          className={cn(
+            "p-5 rounded-2xl border space-y-3 animate-in fade-in slide-in-from-top-2 duration-300",
+            selectedOption === question.correctIndex
+              ? "bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900"
+              : "bg-amber-50/60 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900"
+          )}
+        >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-foreground font-bold text-sm">
-              <AlertCircle className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-              <span>GIẢI THÍCH BỆNH HỌC & CƠ CHẾ LÂM SÀNG</span>
+            <div className="flex items-center gap-2">
+              <Sparkles
+                className={cn(
+                  "h-4 w-4",
+                  selectedOption === question.correctIndex
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-amber-600 dark:text-amber-400"
+                )}
+              />
+              <h4 className="font-bold text-xs sm:text-sm text-foreground">
+                GIẢI THÍCH BỆNH HỌC &amp; CƠ CHẾ LÂM SÀNG
+              </h4>
             </div>
-            <span
-              className={cn(
-                "text-xs font-bold px-2.5 py-0.5 rounded-full",
-                selectedOption === question.correctIndex
-                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                  : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
-              )}
-            >
-              {selectedOption === question.correctIndex ? "Trả lời ĐÚNG" : "Trả lời SAI"}
-            </span>
-          </div>
 
-          <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-            {question.explanation}
-          </p>
-
-          {/* Quick Action: Ask MediAI */}
-          {onAskAI && (
-            <div className="pt-2 border-t border-border/60 flex items-center justify-between">
-              <span className="text-[11px] text-muted-foreground">
-                Cần hiểu sâu hơn về cơ chế bệnh sinh?
-              </span>
+            {onAskAI && (
               <button
                 type="button"
                 onClick={() => onAskAI(question)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-semibold transition-all"
+                className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-sky-100 hover:bg-sky-200 dark:bg-sky-950 dark:hover:bg-sky-900 text-sky-700 dark:text-sky-300 text-xs font-semibold transition-colors"
               >
-                <Sparkles className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-                <span>Hỏi MediAI giải thích thêm</span>
+                <span>Hỏi MediAI Tutor</span>
               </button>
-            </div>
-          )}
+            )}
+          </div>
+
+          <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed whitespace-pre-line">
+            {question.explanation}
+          </p>
         </div>
       )}
     </div>

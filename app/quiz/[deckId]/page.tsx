@@ -12,23 +12,18 @@ import { QuizTimer } from "@/components/mcq/quiz-timer";
 import { QuizResultModal } from "@/components/mcq/quiz-result-modal";
 import { calculateBloomMatrix } from "@/lib/utils";
 import {
-  BrainCircuit,
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
   Send,
   RotateCcw,
   Sparkles,
-  Settings2,
   Clock,
   Infinity as InfinityIcon,
   Sliders,
   FolderTree,
   FileQuestion,
-  PlusCircle,
-  FolderPlus,
   Shuffle,
-  CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +33,6 @@ export default function QuizPage() {
   const { user, recordQuizSubmission } = useAuth();
 
   const [deckTitle, setDeckTitle] = useState("Bộ Đề Luyện Trắc Nghiệm Y Khoa");
-  const [initialQuestions, setInitialQuestions] = useState<MCQQuestion[]>([]);
   const [questions, setQuestions] = useState<MCQQuestion[]>([]);
   const [isLoadingDeck, setIsLoadingDeck] = useState(true);
 
@@ -79,7 +73,6 @@ export default function QuizPage() {
         foundQuestions = MOCK_MCQ_QUESTIONS;
       }
 
-      setInitialQuestions(foundQuestions);
       setQuestions(foundQuestions);
     } catch (e) {
       setQuestions([]);
@@ -116,7 +109,7 @@ export default function QuizPage() {
       return {
         ...q,
         options: newOptions,
-        correctIndex: newCorrectIndex,
+        correctIndex: newCorrectIndex >= 0 ? newCorrectIndex : 0,
       };
     });
 
