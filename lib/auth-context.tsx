@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { UserProfile, BloomLevel, FolderShareRequest, FolderNode } from "@/types";
+import { UserProfile, BloomLevel, FolderShareRequest, FolderNode, LeaderboardEntry, BloomScoreMatrix } from "@/types";
 import { MOCK_USER, MOCK_FOLDERS } from "@/lib/mock-data";
 
 interface AuthContextType {
@@ -18,7 +18,12 @@ interface AuthContextType {
     yearOfStudy: number;
   }) => { success: boolean; error?: string };
   logout: () => void;
-  updateUserStreak: () => void;
+  // Daily Attendance & Streak System
+  checkInDaily: () => { success: boolean; newStreak?: number; message?: string; alreadyCheckedIn?: boolean };
+  // Quiz Score Recording & Real-time Bloom update
+  recordQuizSubmission: (correctCount: number, totalCount: number, bloomMatrix: BloomScoreMatrix) => void;
+  // Leaderboard
+  getLeaderboard: () => LeaderboardEntry[];
   // Forgot / Reset Password
   verifyAccountExists: (identity: string) => { success: boolean; user?: UserProfile; error?: string };
   resetPassword: (identity: string, newPass: string) => { success: boolean; error?: string };
@@ -30,13 +35,14 @@ interface AuthContextType {
   saveUserFolders: (folders: FolderNode[]) => { success: boolean; error?: string };
 }
 
-const defaultStats: Record<BloomLevel, { total: number; correct: number; percentage: number }> = {
-  REMEMBERING: { total: 10, correct: 9, percentage: 90 },
-  UNDERSTANDING: { total: 8, correct: 7, percentage: 88 },
-  APPLYING: { total: 6, correct: 5, percentage: 83 },
-  ANALYZING: { total: 5, correct: 4, percentage: 80 },
-  EVALUATING: { total: 2, correct: 1, percentage: 50 },
-  CREATING: { total: 1, correct: 1, percentage: 100 },
+// Initial clean Bloom taxonomy stats starting from 0
+const initialCleanBloomStats: Record<BloomLevel, { total: number; correct: number; percentage: number }> = {
+  REMEMBERING: { total: 0, correct: 0, percentage: 0 },
+  UNDERSTANDING: { total: 0, correct: 0, percentage: 0 },
+  APPLYING: { total: 0, correct: 0, percentage: 0 },
+  ANALYZING: { total: 0, correct: 0, percentage: 0 },
+  EVALUATING: { total: 0, correct: 0, percentage: 0 },
+  CREATING: { total: 0, correct: 0, percentage: 0 },
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -52,7 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const storedUsersStr = localStorage.getItem("medlearn_users");
       let usersList: UserProfile[] = [];
 
-      // Seed default accounts
+      // Seed core users and benchmark leaderboard peers
       const defaultUsers: UserProfile[] = [
         {
           id: "user_tuan_le_primary",
@@ -60,58 +66,74 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           username: "leanhtuan",
           email: "leanhtuan812006@gmail.com",
           password: "123",
-          isDemo: false, // Personal account, allowed to change password and edit
+          isDemo: false,
           role: "STUDENT",
           medicalSchool: "Đại học Y Dược TP.HCM",
           yearOfStudy: 4,
-          streakCount: 14,
-          totalQuestionsAnswered: 350,
-          overallAccuracy: 88.5,
-          bloomTaxonomyStats: {
-            REMEMBERING: { total: 100, correct: 94, percentage: 94 },
-            UNDERSTANDING: { total: 85, correct: 78, percentage: 91 },
-            APPLYING: { total: 65, correct: 58, percentage: 89 },
-            ANALYZING: { total: 50, correct: 42, percentage: 84 },
-            EVALUATING: { total: 25, correct: 20, percentage: 80 },
-            CREATING: { total: 25, correct: 21, percentage: 84 },
-          },
+          streakCount: 1, // Clean initial check-in streak
+          lastCheckInDate: "", // Not checked in today yet
+          totalQuestionsAnswered: 0, // Clean initial stats
+          totalCorrectAnswers: 0, // Clean initial stats
+          overallAccuracy: 0,
+          bloomTaxonomyStats: initialCleanBloomStats,
         },
         {
-          id: "user_demo_sample",
-          name: "BS. Dùng Thử Mẫu",
-          username: "anhtuan",
-          email: "tuan.le@med.edu.vn",
-          password: "123",
-          isDemo: true, // Demo account locked
-          role: "STUDENT",
-          medicalSchool: "Đại học Y Dược TP.HCM",
-          yearOfStudy: 4,
-          streakCount: 7,
-          totalQuestionsAnswered: 120,
-          overallAccuracy: 85.0,
-          bloomTaxonomyStats: defaultStats,
-        },
-        {
-          id: "user_sv_y4",
+          id: "user_top1_mai",
           name: "BSNT. Nguyễn Hoàng Mai",
           username: "hoangmai",
           email: "mai.nguyen@med.edu.vn",
           password: "123",
-          isDemo: true, // Demo account locked
+          isDemo: true,
           role: "RESIDENT_DOCTOR",
           medicalSchool: "Đại học Y Hà Nội (Bác Sĩ Nội Trú)",
           yearOfStudy: 6,
-          streakCount: 21,
-          totalQuestionsAnswered: 520,
-          overallAccuracy: 89.2,
+          streakCount: 15,
+          lastCheckInDate: new Date().toISOString().split("T")[0],
+          totalQuestionsAnswered: 240,
+          totalCorrectAnswers: 216,
+          overallAccuracy: 90.0,
           bloomTaxonomyStats: {
-            REMEMBERING: { total: 160, correct: 152, percentage: 95 },
-            UNDERSTANDING: { total: 130, correct: 120, percentage: 92 },
-            APPLYING: { total: 95, correct: 85, percentage: 89 },
-            ANALYZING: { total: 75, correct: 66, percentage: 88 },
-            EVALUATING: { total: 35, correct: 29, percentage: 82 },
-            CREATING: { total: 25, correct: 20, percentage: 80 },
+            REMEMBERING: { total: 70, correct: 66, percentage: 94 },
+            UNDERSTANDING: { total: 60, correct: 55, percentage: 92 },
+            APPLYING: { total: 45, correct: 40, percentage: 89 },
+            ANALYZING: { total: 35, correct: 30, percentage: 86 },
+            EVALUATING: { total: 18, correct: 14, percentage: 78 },
+            CREATING: { total: 12, correct: 11, percentage: 92 },
           },
+        },
+        {
+          id: "user_top2_duc",
+          name: "BS. Trần Minh Đức",
+          username: "minhduc",
+          email: "duc.tran@med.edu.vn",
+          password: "123",
+          isDemo: true,
+          role: "STUDENT",
+          medicalSchool: "Khoa Y - ĐHQG TP.HCM",
+          yearOfStudy: 5,
+          streakCount: 10,
+          lastCheckInDate: new Date().toISOString().split("T")[0],
+          totalQuestionsAnswered: 160,
+          totalCorrectAnswers: 136,
+          overallAccuracy: 85.0,
+          bloomTaxonomyStats: initialCleanBloomStats,
+        },
+        {
+          id: "user_top3_huong",
+          name: "BS. Phạm Thị Hương",
+          username: "thihuong",
+          email: "huong.pham@med.edu.vn",
+          password: "123",
+          isDemo: true,
+          role: "STUDENT",
+          medicalSchool: "Đại học Y Dược Cần Thơ",
+          yearOfStudy: 4,
+          streakCount: 7,
+          lastCheckInDate: new Date().toISOString().split("T")[0],
+          totalQuestionsAnswered: 110,
+          totalCorrectAnswers: 92,
+          overallAccuracy: 83.6,
+          bloomTaxonomyStats: initialCleanBloomStats,
         },
       ];
 
@@ -120,11 +142,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem("medlearn_users", JSON.stringify(defaultUsers));
       } else {
         usersList = JSON.parse(storedUsersStr);
-        // Ensure leanhtuan812006@gmail.com is always present in usersList
-        const hasTuanEmail = usersList.some(
+        // Ensure primary user exists
+        const hasTuan = usersList.some(
           (u) => u.email?.toLowerCase() === "leanhtuan812006@gmail.com"
         );
-        if (!hasTuanEmail) {
+        if (!hasTuan) {
           usersList.unshift(defaultUsers[0]);
           localStorage.setItem("medlearn_users", JSON.stringify(usersList));
         }
@@ -134,6 +156,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const activeUserStr = localStorage.getItem("medlearn_current_user");
       if (activeUserStr) {
         const parsedUser = JSON.parse(activeUserStr);
+        // Ensure properties exist
+        parsedUser.totalCorrectAnswers = parsedUser.totalCorrectAnswers ?? 0;
+        parsedUser.streakCount = parsedUser.streakCount ?? 1;
         setUser(parsedUser);
       } else {
         setUser(null);
@@ -151,29 +176,172 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // DAILY CHECK-IN & STREAK SYSTEM
+  const checkInDaily = (): {
+    success: boolean;
+    newStreak?: number;
+    message?: string;
+    alreadyCheckedIn?: boolean;
+  } => {
+    if (!user) {
+      return { success: false, message: "Vui lòng đăng nhập để điểm danh!" };
+    }
+
+    const todayStr = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+
+    if (user.lastCheckInDate === todayStr) {
+      return {
+        success: false,
+        alreadyCheckedIn: true,
+        message: "Hôm nay bạn đã điểm danh rồi! Hãy duy trì chuỗi học tập vào ngày mai nhé.",
+      };
+    }
+
+    // Check consecutive date
+    let newStreak = user.streakCount || 0;
+    if (user.lastCheckInDate) {
+      const lastDate = new Date(user.lastCheckInDate);
+      const today = new Date(todayStr);
+      const diffTime = Math.abs(today.getTime() - lastDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 1) {
+        newStreak += 1; // Consecutive day streak
+      } else if (diffDays > 1) {
+        newStreak = 1; // Missed streak, reset to 1
+      }
+    } else {
+      newStreak = Math.max(1, newStreak);
+    }
+
+    const updatedUser: UserProfile = {
+      ...user,
+      streakCount: newStreak,
+      lastCheckInDate: todayStr,
+    };
+
+    // Save to localStorage
+    setUser(updatedUser);
+    localStorage.setItem("medlearn_current_user", JSON.stringify(updatedUser));
+
+    const usersStr = localStorage.getItem("medlearn_users");
+    if (usersStr) {
+      const list: UserProfile[] = JSON.parse(usersStr);
+      const idx = list.findIndex((u) => u.id === user.id || u.email === user.email);
+      if (idx !== -1) {
+        list[idx] = updatedUser;
+        localStorage.setItem("medlearn_users", JSON.stringify(list));
+      }
+    }
+
+    return {
+      success: true,
+      newStreak,
+      message: `Điểm danh thành công! Chuỗi học tập của bạn đạt ${newStreak} ngày liên tục (+10 điểm BXH).`,
+    };
+  };
+
+  // RECORD QUIZ SUBMISSION & UPDATE BLOOM MATRIX
+  const recordQuizSubmission = (
+    correctCount: number,
+    totalCount: number,
+    bloomMatrix: BloomScoreMatrix
+  ) => {
+    if (!user) return;
+
+    const currentTotalQ = (user.totalQuestionsAnswered || 0) + totalCount;
+    const currentCorrect = (user.totalCorrectAnswers || 0) + correctCount;
+    const newAccuracy = currentTotalQ > 0 ? Math.round((currentCorrect / currentTotalQ) * 100) : 0;
+
+    // Merge Bloom Taxonomy Stats
+    const updatedBloom = { ...user.bloomTaxonomyStats };
+    Object.keys(bloomMatrix).forEach((key) => {
+      const bKey = key as BloomLevel;
+      const matrixItem = bloomMatrix[bKey];
+      if (matrixItem && updatedBloom[bKey]) {
+        const newTot = (updatedBloom[bKey].total || 0) + matrixItem.total;
+        const newCor = (updatedBloom[bKey].correct || 0) + matrixItem.correct;
+        const newPct = newTot > 0 ? Math.round((newCor / newTot) * 100) : 0;
+        updatedBloom[bKey] = {
+          total: newTot,
+          correct: newCor,
+          percentage: newPct,
+        };
+      }
+    });
+
+    const updatedUser: UserProfile = {
+      ...user,
+      totalQuestionsAnswered: currentTotalQ,
+      totalCorrectAnswers: currentCorrect,
+      overallAccuracy: newAccuracy,
+      bloomTaxonomyStats: updatedBloom,
+    };
+
+    setUser(updatedUser);
+    localStorage.setItem("medlearn_current_user", JSON.stringify(updatedUser));
+
+    const usersStr = localStorage.getItem("medlearn_users");
+    if (usersStr) {
+      const list: UserProfile[] = JSON.parse(usersStr);
+      const idx = list.findIndex((u) => u.id === user.id || u.email === user.email);
+      if (idx !== -1) {
+        list[idx] = updatedUser;
+        localStorage.setItem("medlearn_users", JSON.stringify(list));
+      }
+    }
+  };
+
+  // LEADERBOARD CALCULATION
+  const getLeaderboard = (): LeaderboardEntry[] => {
+    try {
+      const usersStr = localStorage.getItem("medlearn_users");
+      const list: UserProfile[] = usersStr ? JSON.parse(usersStr) : [];
+
+      // Calculate Rank Score: (Streak * 10) + (Correct Answers * 5)
+      const mapped: LeaderboardEntry[] = list.map((u) => {
+        const correct = u.totalCorrectAnswers || 0;
+        const streak = u.streakCount || 0;
+        const score = streak * 10 + correct * 5;
+
+        return {
+          id: u.id,
+          name: u.name,
+          username: u.username,
+          email: u.email,
+          medicalSchool: u.medicalSchool || "Đại học Y Dược",
+          yearOfStudy: u.yearOfStudy || 4,
+          role: u.role === "RESIDENT_DOCTOR" ? "Bác Sĩ Nội Trú" : `Sinh viên Y${u.yearOfStudy || 4}`,
+          streakCount: streak,
+          totalCorrectAnswers: correct,
+          totalQuestionsAnswered: u.totalQuestionsAnswered || 0,
+          overallAccuracy: u.overallAccuracy || 0,
+          rankScore: score,
+          rank: 0,
+          isCurrentUser: user?.id === u.id || user?.email === u.email,
+        };
+      });
+
+      // Sort descending by rankScore
+      mapped.sort((a, b) => b.rankScore - a.rankScore);
+
+      // Assign Rank index
+      return mapped.map((entry, idx) => ({
+        ...entry,
+        rank: idx + 1,
+      }));
+    } catch (e) {
+      return [];
+    }
+  };
+
   const login = (identity: string, pass: string): { success: boolean; error?: string } => {
     try {
       const usersStr = localStorage.getItem("medlearn_users");
       const usersList: UserProfile[] = usersStr ? JSON.parse(usersStr) : [];
       const cleanIdentity = identity.trim().toLowerCase();
 
-      // Special direct match for user's email
-      if (cleanIdentity === "leanhtuan812006@gmail.com" || cleanIdentity === "leanhtuan") {
-        const tuanAccount = usersList.find(
-          (u) =>
-            u.email?.toLowerCase() === "leanhtuan812006@gmail.com" ||
-            u.username?.toLowerCase() === "leanhtuan"
-        );
-        if (tuanAccount) {
-          // If password matches or standard pass
-          if (tuanAccount.password === pass || pass === "123") {
-            setUser(tuanAccount);
-            localStorage.setItem("medlearn_current_user", JSON.stringify(tuanAccount));
-            return { success: true };
-          }
-        }
-      }
-
+      // Match user
       const found = usersList.find(
         (u) =>
           (u.email?.toLowerCase() === cleanIdentity ||
@@ -233,9 +401,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         medicalSchool: data.medicalSchool || "Đại học Y Dược TP.HCM",
         yearOfStudy: data.yearOfStudy || 4,
         streakCount: 1,
+        lastCheckInDate: new Date().toISOString().split("T")[0], // Checked in on register
         totalQuestionsAnswered: 0,
+        totalCorrectAnswers: 0,
         overallAccuracy: 0,
-        bloomTaxonomyStats: defaultStats,
+        bloomTaxonomyStats: initialCleanBloomStats,
       };
 
       usersList.push(newUser);
@@ -255,13 +425,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem("medlearn_current_user");
-  };
-
-  const updateUserStreak = () => {
-    if (!user) return;
-    const updated = { ...user, streakCount: user.streakCount + 1 };
-    setUser(updated);
-    localStorage.setItem("medlearn_current_user", JSON.stringify(updated));
   };
 
   // Verify if account exists for Forgot Password flow
@@ -289,10 +452,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             role: "STUDENT",
             medicalSchool: "Đại học Y Dược TP.HCM",
             yearOfStudy: 4,
-            streakCount: 14,
-            totalQuestionsAnswered: 350,
-            overallAccuracy: 88.5,
-            bloomTaxonomyStats: defaultStats,
+            streakCount: 1,
+            lastCheckInDate: "",
+            totalQuestionsAnswered: 0,
+            totalCorrectAnswers: 0,
+            overallAccuracy: 0,
+            bloomTaxonomyStats: initialCleanBloomStats,
           };
           usersList.unshift(tuan);
           localStorage.setItem("medlearn_users", JSON.stringify(usersList));
@@ -343,10 +508,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           role: "STUDENT",
           medicalSchool: "Đại học Y Dược TP.HCM",
           yearOfStudy: 4,
-          streakCount: 14,
-          totalQuestionsAnswered: 350,
-          overallAccuracy: 88.5,
-          bloomTaxonomyStats: defaultStats,
+          streakCount: 1,
+          lastCheckInDate: "",
+          totalQuestionsAnswered: 0,
+          totalCorrectAnswers: 0,
+          overallAccuracy: 0,
+          bloomTaxonomyStats: initialCleanBloomStats,
         };
         usersList.unshift(target);
       } else if (!target) {
@@ -470,7 +637,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         register,
         logout,
-        updateUserStreak,
+        checkInDaily,
+        recordQuizSubmission,
+        getLeaderboard,
         verifyAccountExists,
         resetPassword,
         shareRequests,

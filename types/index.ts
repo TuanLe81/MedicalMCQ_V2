@@ -114,6 +114,23 @@ export interface QuizResult {
   userAnswers: { [questionIndex: number]: number };
 }
 
+export interface LeaderboardEntry {
+  id: string;
+  name: string;
+  username?: string;
+  email?: string;
+  medicalSchool: string;
+  yearOfStudy: number;
+  role: string;
+  streakCount: number;
+  totalCorrectAnswers: number;
+  totalQuestionsAnswered: number;
+  overallAccuracy: number;
+  rankScore: number; // Formula: (streakCount * 10) + (totalCorrectAnswers * 5)
+  rank: number;
+  isCurrentUser?: boolean;
+}
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -125,7 +142,9 @@ export interface UserProfile {
   medicalSchool: string;
   yearOfStudy: number;
   streakCount: number;
+  lastCheckInDate?: string; // YYYY-MM-DD
   totalQuestionsAnswered: number;
+  totalCorrectAnswers?: number;
   overallAccuracy: number;
   bloomTaxonomyStats: {
     [key in BloomLevel]: {

@@ -20,6 +20,8 @@ export function BloomRadarChart({ user }: BloomRadarChartProps) {
     "CREATING",
   ];
 
+  const overallAcc = user?.overallAccuracy || 0;
+
   return (
     <div className="p-6 sm:p-8 rounded-3xl border border-border bg-card shadow-sm space-y-6">
       {/* Header */}
@@ -27,16 +29,16 @@ export function BloomRadarChart({ user }: BloomRadarChartProps) {
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-foreground font-extrabold text-base sm:text-lg">
             <BrainCircuit className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-            <span>NĂNG LỰC TƯ DUY Y KHOA (BLOOM'S TAXONOMY)</span>
+            <span>NĂNG LỰC TƯ DUY Y KHOA (BLOOM&apos;S TAXONOMY)</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            Thống kê tỉ lệ trả lời đúng theo 6 cấp độ tư duy từ Nhớ cơ bản đến Phân tích ca lâm sàng & Sáng tạo
+            Thống kê tỉ lệ trả lời đúng theo 6 cấp độ tư duy từ Nhớ cơ bản đến Phân tích ca lâm sàng &amp; Sáng tạo
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-            Độ chuẩn xác chung: {user.overallAccuracy}%
+            Độ chuẩn xác chung: {overallAcc}%
           </span>
         </div>
       </div>
@@ -44,9 +46,9 @@ export function BloomRadarChart({ user }: BloomRadarChartProps) {
       {/* Bloom Bars Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {bloomLevels.map((lvl) => {
-          const stats = user.bloomTaxonomyStats[lvl];
+          const stats = user?.bloomTaxonomyStats?.[lvl] || { total: 0, correct: 0, percentage: 0 };
           const info = BLOOM_TAXONOMY_MAP[lvl];
-          if (!stats || !info) return null;
+          if (!info) return null;
 
           return (
             <div
@@ -102,11 +104,10 @@ export function BloomRadarChart({ user }: BloomRadarChartProps) {
             Nhận xét AI Tutor về lộ trình học tập:
           </span>
           <p className="text-foreground/80 leading-relaxed">
-            Bạn có nền tảng rất vững ở cấp độ <strong>1. Nhớ (89%)</strong> và <strong>2. Hiểu (87%)</strong>. Hãy tiếp tục giải nhiều ca lâm sàng phức tạp ở cấp độ <strong>4. Phân tích (80%)</strong> và <strong>5. Đánh giá</strong> để sẵn sàng cho kỳ thi Bác sĩ Nội trú và vòng thi OSCE/OSPE!
+            Hệ thống đang theo dõi và phân tích năng lực giải quyết ca bệnh của bạn theo 6 cấp độ Bloom. Hãy tích cực làm bài trắc nghiệm ca lâm sàng để mở khóa thêm các phân tích chuyên sâu!
           </p>
         </div>
       </div>
     </div>
   );
 }
-
