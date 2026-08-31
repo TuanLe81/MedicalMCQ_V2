@@ -90,7 +90,6 @@ export default function ForgotPasswordPage() {
     startCooldown();
   };
 
-  // Quick fill OTP Helper
   const handleAutoFillOtp = () => {
     setEnteredOtp(generatedOtp);
   };
@@ -417,4 +416,3 @@ export default function ForgotPasswordPage() {
     </div>
   );
 }
-

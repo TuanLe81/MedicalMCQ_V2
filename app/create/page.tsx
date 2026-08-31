@@ -32,6 +32,8 @@ import {
   Lock,
   FolderTree,
   Plus,
+  Play,
+  RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -78,8 +80,17 @@ export default function CreateStudioPage() {
   const [parsedFlashcards, setParsedFlashcards] = useState<FlashcardItem[]>([]);
   const [batchTargetDeckTitle, setBatchTargetDeckTitle] = useState("Bộ Đề Y Khoa Mới Import");
   const [parseErrors, setParseErrors] = useState<string[]>([]);
-  const [savedSuccess, setSavedSuccess] = useState(false);
-  const [savedDeckId, setSavedDeckId] = useState<string | null>(null);
+
+  // IMPORT SUCCESS MODAL STATE
+  const [successModalData, setSuccessModalData] = useState<{
+    isOpen: boolean;
+    title: string;
+    type: "MCQ" | "FLASHCARD";
+    itemCount: number;
+    specialty: string;
+    folderName: string;
+    deckId: string;
+  } | null>(null);
 
   // AI GENERATOR STATES
   const [aiTopic, setAiTopic] = useState("Hội Chứng Vành Cấp & Suy Tim");
@@ -395,16 +406,25 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
     const newDeckId = `custom_deck_${Date.now()}`;
     const isMCQ = batchType === "MCQ";
     const effectiveSpec = getEffectiveSpecialty();
+    const count = isMCQ ? parsedMCQs.length : parsedFlashcards.length;
+
+    let targetFolderTitle = "Thư Mục Mới";
+    const matchedFolder = availableFolders.find((f) => f.id === targetFolderId);
+    if (matchedFolder) {
+      targetFolderTitle = matchedFolder.name;
+    } else if (newFolderName) {
+      targetFolderTitle = newFolderName;
+    }
 
     const newDeck: Deck = {
       id: newDeckId,
       title: batchTargetDeckTitle || "Bộ Đề Y Khoa Mới",
-      description: `Tạo với ${isMCQ ? parsedMCQs.length : parsedFlashcards.length} mục theo thang đo Bloom • ${effectiveSpec}`,
+      description: `Tạo với ${count} mục theo thang đo Bloom • ${effectiveSpec}`,
       type: isMCQ ? "MCQ" : "FLASHCARD",
       specialty: effectiveSpec,
       questions: isMCQ ? parsedMCQs : [],
       flashcards: !isMCQ ? parsedFlashcards : [],
-      itemCount: isMCQ ? parsedMCQs.length : parsedFlashcards.length,
+      itemCount: count,
       updatedAt: new Date().toISOString().split("T")[0],
     };
 
@@ -434,12 +454,27 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
         saveUserFolders(updated);
       }
 
-      setSavedDeckId(newDeckId);
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 5000);
+      // 3. Open Import Success Modal
+      setSuccessModalData({
+        isOpen: true,
+        title: newDeck.title,
+        type: isMCQ ? "MCQ" : "FLASHCARD",
+        itemCount: count,
+        specialty: effectiveSpec,
+        folderName: targetFolderTitle,
+        deckId: newDeckId,
+      });
     } catch (e) {
-      setSavedSuccess(true);
+      // Fallback
     }
+  };
+
+  const handleResetForm = () => {
+    setSuccessModalData(null);
+    setBatchRawInput("");
+    setParsedMCQs([]);
+    setParsedFlashcards([]);
+    setBatchTargetDeckTitle("Bộ Đề Y Khoa Mới Import");
   };
 
   return (
@@ -462,21 +497,6 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
               Tự động lưu trực tiếp vào Cây Thư Mục của bạn, hỗ trợ tạo chuyên khoa tùy biến và phân loại chuẩn 6 bậc Bloom
             </p>
           </div>
-
-          {savedSuccess && (
-            <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 text-xs font-bold animate-in fade-in shadow-xs">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              <span>Đã lưu vào Cây Thư Mục!</span>
-              {savedDeckId && (
-                <Link
-                  href={batchType === "MCQ" ? `/quiz/${savedDeckId}` : `/flashcards/${savedDeckId}`}
-                  className="underline ml-1 text-emerald-900 dark:text-emerald-200"
-                >
-                  Làm bài ngay →
-                </Link>
-              )}
-            </div>
-          )}
         </div>
 
         {/* DESTINATION FOLDER & SPECIALTY CONFIGURATION BANNER */}
@@ -1072,6 +1092,80 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
             >
               Thêm Thẻ Vào Bộ Flashcard &amp; Xem Lại
             </button>
+          </div>
+        )}
+
+        {/* IMPORT SUCCESS POPUP / MODAL */}
+        {successModalData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in">
+            <div className="w-full max-w-lg rounded-3xl border-2 border-emerald-500 bg-card p-6 sm:p-8 shadow-2xl space-y-6 animate-in zoom-in-95">
+              {/* Header */}
+              <div className="text-center space-y-2">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 shadow-inner">
+                  <CheckCircle2 className="h-9 w-9" />
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 text-xs font-bold">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                  <span>NHẬP THÀNH CÔNG VÀO CÂY THƯ MỤC!</span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black text-foreground">
+                  Đã Lưu Thành Công Bộ Đề
+                </h2>
+              </div>
+
+              {/* Information Cards */}
+              <div className="p-4 rounded-2xl bg-muted/40 border border-border space-y-2.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground font-semibold">Tên bộ đề:</span>
+                  <span className="font-bold text-foreground text-sm">{successModalData.title}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground font-semibold">Loại bộ đề:</span>
+                  <span className="font-bold text-sky-600">
+                    {successModalData.type === "MCQ" ? `Trắc Nghiệm MCQ (${successModalData.itemCount} câu)` : `Thẻ Flashcard 3D (${successModalData.itemCount} thẻ)`}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground font-semibold">Chuyên khoa:</span>
+                  <span className="font-bold text-foreground">{successModalData.specialty}</span>
+                </div>
+                <div className="flex items-center justify-between border-t border-border/60 pt-2">
+                  <span className="text-muted-foreground font-semibold">Đích Cây Thư Mục:</span>
+                  <span className="font-bold text-indigo-600">📁 {successModalData.folderName}</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-2.5 pt-1">
+                <Link
+                  href={successModalData.type === "MCQ" ? `/quiz/${successModalData.deckId}` : `/flashcards/${successModalData.deckId}`}
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md shadow-sky-600/25 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                >
+                  <Play className="h-4 w-4 fill-white" />
+                  <span>Bắt Đầu Luyện Tập Ngay</span>
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <Link
+                    href="/folders"
+                    className="py-3 rounded-2xl border border-border bg-card hover:bg-muted font-bold text-xs text-foreground flex items-center justify-center gap-1.5 transition-all text-center"
+                  >
+                    <FolderTree className="h-4 w-4 text-sky-600" />
+                    <span>Mở Cây Thư Mục</span>
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={handleResetForm}
+                    className="py-3 rounded-2xl border border-border bg-card hover:bg-muted font-bold text-xs text-muted-foreground hover:text-foreground flex items-center justify-center gap-1.5 transition-all"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Tạo / Import Tiếp</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
