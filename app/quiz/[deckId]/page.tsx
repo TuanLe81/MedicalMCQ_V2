@@ -27,6 +27,8 @@ import {
   FileQuestion,
   PlusCircle,
   FolderPlus,
+  Shuffle,
+  CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +38,7 @@ export default function QuizPage() {
   const { user, recordQuizSubmission } = useAuth();
 
   const [deckTitle, setDeckTitle] = useState("Bộ Đề Luyện Trắc Nghiệm Y Khoa");
+  const [initialQuestions, setInitialQuestions] = useState<MCQQuestion[]>([]);
   const [questions, setQuestions] = useState<MCQQuestion[]>([]);
   const [isLoadingDeck, setIsLoadingDeck] = useState(true);
 
@@ -45,6 +48,7 @@ export default function QuizPage() {
   const [isUnlimitedTime, setIsUnlimitedTime] = useState<boolean>(false);
   const [isExamMode, setIsExamMode] = useState<boolean>(false); // false = instant feedback; true = test mode
   const [showTimeModal, setShowTimeModal] = useState<boolean>(false);
+  const [shuffleToast, setShuffleToast] = useState<string | null>(null);
 
   // In-Quiz States
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
@@ -75,6 +79,7 @@ export default function QuizPage() {
         foundQuestions = MOCK_MCQ_QUESTIONS;
       }
 
+      setInitialQuestions(foundQuestions);
       setQuestions(foundQuestions);
     } catch (e) {
       setQuestions([]);
@@ -91,6 +96,41 @@ export default function QuizPage() {
       ...prev,
       [currentQuestionIndex]: optionIndex,
     }));
+  };
+
+  // RANDOM SHUFFLE QUESTIONS & CHOICES ALGORITHM (Fisher-Yates)
+  const handleShuffleQuiz = () => {
+    if (hasSubmitted || questions.length === 0) return;
+
+    // 1. Shuffle option choices in each question and accurately re-map the correctIndex
+    const shuffledQuestions = questions.map((q) => {
+      const originalCorrectText = q.options[q.correctIndex];
+      const newOptions = [...q.options];
+
+      for (let i = newOptions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newOptions[i], newOptions[j]] = [newOptions[j], newOptions[i]];
+      }
+
+      const newCorrectIndex = newOptions.indexOf(originalCorrectText);
+      return {
+        ...q,
+        options: newOptions,
+        correctIndex: newCorrectIndex,
+      };
+    });
+
+    // 2. Shuffle question order
+    for (let i = shuffledQuestions.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffledQuestions[i], shuffledQuestions[j]] = [shuffledQuestions[j], shuffledQuestions[i]];
+    }
+
+    setQuestions(shuffledQuestions);
+    setUserAnswers({});
+    setCurrentQuestionIndex(0);
+    setShuffleToast("Đã xáo trộn ngẫu nhiên thứ tự câu hỏi và các đáp án A, B, C, D! 🔀");
+    setTimeout(() => setShuffleToast(null), 3000);
   };
 
   // Submit and Calculate Score + Bloom Matrix + Record to Leaderboard
@@ -215,10 +255,24 @@ export default function QuizPage() {
                 </div>
               </div>
 
-              {/* Timer Config Display */}
-              <div className="flex items-center gap-2">
+              {/* Action Ribbon: Shuffle & Timer */}
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end">
+                {/* Shuffle Button */}
+                {!hasSubmitted && !reviewMode && (
+                  <button
+                    type="button"
+                    onClick={handleShuffleQuiz}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 text-xs font-bold border border-sky-200 dark:border-sky-800 transition-all hover:scale-105 shadow-xs"
+                    title="Xáo trộn ngẫu nhiên cả thứ tự câu hỏi và các đáp án A, B, C, D"
+                  >
+                    <Shuffle className="h-3.5 w-3.5" />
+                    <span>Xáo Trộn Đề</span>
+                  </button>
+                )}
+
+                {/* Timer Config Display */}
                 {!hasSubmitted && (
-                  <div className="w-52">
+                  <div className="w-48 sm:w-52">
                     <QuizTimer
                       initialSeconds={timerMinutes * 60}
                       isActive={!hasSubmitted}
@@ -230,6 +284,17 @@ export default function QuizPage() {
                 )}
               </div>
             </div>
+
+            {/* Shuffle Toast Notification */}
+            {shuffleToast && (
+              <div className="p-3 rounded-2xl bg-sky-600 text-white text-xs font-bold shadow-lg shadow-sky-600/20 flex items-center justify-between gap-2 animate-in fade-in zoom-in-95">
+                <div className="flex items-center gap-2">
+                  <Shuffle className="h-4 w-4 shrink-0" />
+                  <span>{shuffleToast}</span>
+                </div>
+                <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full">Sẵn sàng làm bài</span>
+              </div>
+            )}
 
             {/* Mode Switcher & Custom Timer Setting Ribbon */}
             {!hasSubmitted && !reviewMode && (
