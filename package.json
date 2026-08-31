@@ -1,6 +1,6 @@
 {
   "name": "medlearn-platform",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Nền tảng Học tập Y khoa Thông minh với Hệ thống MCQ & Flashcard phân tích theo Thang đo tư duy Bloom",
   "scripts": {
