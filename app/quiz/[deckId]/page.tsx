@@ -35,7 +35,7 @@ import { cn } from "@/lib/utils";
 export default function QuizPage() {
   const params = useParams();
   const router = useRouter();
-  const { user, recordQuizSubmission } = useAuth();
+  const { user, recordQuizSubmission, getUserFolders } = useAuth();
 
   const [deckTitle, setDeckTitle] = useState("Bộ Đề Luyện Trắc Nghiệm Y Khoa");
   const [questions, setQuestions] = useState<MCQQuestion[]>([]);
@@ -67,6 +67,7 @@ export default function QuizPage() {
       const storedCustom = localStorage.getItem("medlearn_custom_decks");
       let foundQuestions: MCQQuestion[] = [];
 
+      // 1. Search in localStorage custom decks
       if (storedCustom && params?.deckId) {
         const customDecks = JSON.parse(storedCustom);
         const matched = customDecks.find((d: any) => d.id === params.deckId);
@@ -76,8 +77,29 @@ export default function QuizPage() {
         }
       }
 
-      // If no custom deck found and user is in demo mode, fallback to mock questions
-      if (foundQuestions.length === 0 && user?.isDemo) {
+      // 2. Search in User Folder Tree
+      if (foundQuestions.length === 0 && params?.deckId) {
+        const folders = getUserFolders();
+        function searchNodes(nodes: any[]) {
+          for (const f of nodes) {
+            if (f.decks && f.decks.length > 0) {
+              const m = f.decks.find((d: any) => d.id === params.deckId);
+              if (m && m.questions && m.questions.length > 0) {
+                setDeckTitle(m.title);
+                foundQuestions = m.questions;
+                return;
+              }
+            }
+            if (f.children && f.children.length > 0) {
+              searchNodes(f.children);
+            }
+          }
+        }
+        searchNodes(folders);
+      }
+
+      // 3. Fallback demo deck
+      if (foundQuestions.length === 0 && (user?.isDemo || params?.deckId === "deck_cardio_01")) {
         setDeckTitle("Bộ Đề MCQ Mẫu: Suy Tim & Bệnh Mạch Vành (Demo)");
         foundQuestions = MOCK_MCQ_QUESTIONS;
       }
@@ -287,8 +309,9 @@ export default function QuizPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
               <div className="flex items-center gap-3">
                 <Link
-                  href="/folders"
+                  href="/quiz"
                   className="p-2.5 rounded-2xl border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all"
+                  title="Quay lại danh sách bộ đề MCQ"
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </Link>

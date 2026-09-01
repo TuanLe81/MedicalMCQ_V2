@@ -45,8 +45,8 @@ export function Navbar() {
     { href: "/", label: "Trang Chủ", icon: BookOpen, isPublic: true },
     { href: "/dashboard", label: "Dashboard & Bloom", icon: BarChart3, isPublic: false },
     { href: "/folders", label: "Cây Thư Mục", icon: FolderTree, isPublic: false },
-    { href: "/quiz/deck_cardio_01", label: "Luyện MCQ", icon: Layers, isPublic: false },
-    { href: "/flashcards/deck_pharm_01", label: "Flashcards", icon: Stethoscope, isPublic: false },
+    { href: "/quiz", label: "Luyện MCQ", icon: Layers, isPublic: false },
+    { href: "/flashcards", label: "Flashcards", icon: Stethoscope, isPublic: false },
     { href: "/create", label: "Biên Soạn & Import", icon: PlusCircle, isPublic: false },
     { href: "/ai-tutor", label: "MediAI Tutor", icon: Bot, isSpecial: true, isPublic: false },
   ];
@@ -78,7 +78,7 @@ export function Navbar() {
         <nav className="hidden lg:flex items-center gap-1">
           {navLinks.map((link) => {
             const Icon = link.icon;
-            const isActive = pathname === link.href;
+            const isActive = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
             const isLocked = !link.isPublic && !isAuthenticated;
 
             return (
@@ -238,7 +238,7 @@ export function Navbar() {
         <div className="lg:hidden border-b border-border bg-background/95 backdrop-blur-md px-4 py-4 space-y-2 animate-in slide-in-from-top-2">
           {navLinks.map((link) => {
             const Icon = link.icon;
-            const isActive = pathname === link.href;
+            const isActive = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
             const isLocked = !link.isPublic && !isAuthenticated;
 
             return (

@@ -12,7 +12,7 @@ import { ArrowLeft, Stethoscope, Sparkles, Layers, FolderTree, PlusCircle } from
 
 export default function FlashcardsPage() {
   const params = useParams();
-  const { user } = useAuth();
+  const { user, getUserFolders } = useAuth();
 
   const [deckTitle, setDeckTitle] = useState("Bộ Thẻ Flashcard 3D Y Khoa");
   const [cards, setCards] = useState<FlashcardItem[]>([]);
@@ -23,6 +23,7 @@ export default function FlashcardsPage() {
       const storedCustom = localStorage.getItem("medlearn_custom_decks");
       let foundCards: FlashcardItem[] = [];
 
+      // 1. Search in localStorage custom decks
       if (storedCustom && params?.deckId) {
         const customDecks = JSON.parse(storedCustom);
         const matched = customDecks.find((d: any) => d.id === params.deckId);
@@ -32,8 +33,29 @@ export default function FlashcardsPage() {
         }
       }
 
-      // If no custom flashcard deck found and user is in demo mode, fallback to mock cards
-      if (foundCards.length === 0 && user?.isDemo) {
+      // 2. Search in User Folder Tree
+      if (foundCards.length === 0 && params?.deckId) {
+        const folders = getUserFolders();
+        function searchNodes(nodes: any[]) {
+          for (const f of nodes) {
+            if (f.decks && f.decks.length > 0) {
+              const m = f.decks.find((d: any) => d.id === params.deckId);
+              if (m && m.flashcards && m.flashcards.length > 0) {
+                setDeckTitle(m.title);
+                foundCards = m.flashcards;
+                return;
+              }
+            }
+            if (f.children && f.children.length > 0) {
+              searchNodes(f.children);
+            }
+          }
+        }
+        searchNodes(folders);
+      }
+
+      // 3. If no custom flashcard deck found and user is in demo mode, fallback to mock cards
+      if (foundCards.length === 0 && (user?.isDemo || params?.deckId === "deck_pharm_01")) {
         setDeckTitle("Flashcard Cơ Chế Thuốc Tim Mạch & Cấp Cứu (Demo)");
         foundCards = MOCK_FLASHCARDS;
       }
@@ -90,8 +112,9 @@ export default function FlashcardsPage() {
             <div className="flex items-center justify-between border-b border-border/60 pb-4">
               <div className="flex items-center gap-3">
                 <Link
-                  href="/folders"
+                  href="/flashcards"
                   className="p-2 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all"
+                  title="Quay lại danh sách bộ thẻ Flashcard"
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </Link>

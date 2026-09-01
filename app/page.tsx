@@ -77,7 +77,7 @@ export default function HomePage() {
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3.5 pt-2">
                 <Link
-                  href={isAuthenticated ? "/quiz/deck_cardio_01" : "/login"}
+                  href={isAuthenticated ? "/quiz" : "/login"}
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold text-sm sm:text-base shadow-lg shadow-sky-500/25 transition-all hover:scale-[1.02]"
                 >
                   <BrainCircuit className="h-5 w-5" />
