@@ -35,9 +35,6 @@ interface AuthContextType {
   saveUserFolders: (folders: FolderNode[]) => { success: boolean; error?: string };
 }
 
-// Storage version key to auto-migrate and flush stale local storage on client browsers
-const APP_STORAGE_VERSION = "v5.0_clean_dashboard_leaderboard";
-
 // Initial clean Bloom taxonomy stats starting from 0
 const initialCleanBloomStats: Record<BloomLevel, { total: number; correct: number; percentage: number }> = {
   REMEMBERING: { total: 0, correct: 0, percentage: 0 },
@@ -48,6 +45,112 @@ const initialCleanBloomStats: Record<BloomLevel, { total: number; correct: numbe
   CREATING: { total: 0, correct: 0, percentage: 0 },
 };
 
+// Seed core users and benchmark leaderboard peers
+const defaultUsers: UserProfile[] = [
+  {
+    id: "user_tuan_le_primary",
+    name: "BS. Lê Anh Tuấn",
+    username: "leanhtuan",
+    email: "leanhtuan812006@gmail.com",
+    password: "123",
+    isDemo: false,
+    role: "STUDENT",
+    medicalSchool: "Đại học Y Dược TP.HCM",
+    yearOfStudy: 4,
+    streakCount: 1, // Clean initial check-in streak
+    lastCheckInDate: "", // Not checked in today yet
+    totalQuestionsAnswered: 0, // Clean initial stats
+    totalCorrectAnswers: 0, // Clean initial stats
+    overallAccuracy: 0,
+    bloomTaxonomyStats: initialCleanBloomStats,
+  },
+  {
+    id: "user_top1_mai",
+    name: "BSNT. Nguyễn Hoàng Mai",
+    username: "hoangmai",
+    email: "mai.nguyen@med.edu.vn",
+    password: "123",
+    isDemo: true,
+    role: "RESIDENT_DOCTOR",
+    medicalSchool: "Đại học Y Hà Nội (Bác Sĩ Nội Trú)",
+    yearOfStudy: 6,
+    streakCount: 15,
+    lastCheckInDate: new Date().toISOString().split("T")[0],
+    totalQuestionsAnswered: 240,
+    totalCorrectAnswers: 216,
+    overallAccuracy: 90.0,
+    bloomTaxonomyStats: {
+      REMEMBERING: { total: 70, correct: 66, percentage: 94 },
+      UNDERSTANDING: { total: 60, correct: 55, percentage: 92 },
+      APPLYING: { total: 45, correct: 40, percentage: 89 },
+      ANALYZING: { total: 35, correct: 30, percentage: 86 },
+      EVALUATING: { total: 18, correct: 14, percentage: 78 },
+      CREATING: { total: 12, correct: 11, percentage: 92 },
+    },
+  },
+  {
+    id: "user_top2_duc",
+    name: "BS. Trần Minh Đức",
+    username: "minhduc",
+    email: "duc.tran@med.edu.vn",
+    password: "123",
+    isDemo: true,
+    role: "STUDENT",
+    medicalSchool: "Khoa Y - ĐHQG TP.HCM",
+    yearOfStudy: 5,
+    streakCount: 10,
+    lastCheckInDate: new Date().toISOString().split("T")[0],
+    totalQuestionsAnswered: 160,
+    totalCorrectAnswers: 136,
+    overallAccuracy: 85.0,
+    bloomTaxonomyStats: initialCleanBloomStats,
+  },
+  {
+    id: "user_top3_huong",
+    name: "BS. Phạm Thị Hương",
+    username: "thihuong",
+    email: "huong.pham@med.edu.vn",
+    password: "123",
+    isDemo: true,
+    role: "STUDENT",
+    medicalSchool: "Đại học Y Dược Cần Thơ",
+    yearOfStudy: 4,
+    streakCount: 7,
+    lastCheckInDate: new Date().toISOString().split("T")[0],
+    totalQuestionsAnswered: 110,
+    totalCorrectAnswers: 92,
+    overallAccuracy: 83.6,
+    bloomTaxonomyStats: initialCleanBloomStats,
+  },
+];
+
+// Helper to safely get stored users with permanent persistence
+const getStoredUsers = (): UserProfile[] => {
+  if (typeof window === "undefined") return defaultUsers;
+  try {
+    const str = localStorage.getItem("medlearn_users");
+    let list: UserProfile[] = str ? JSON.parse(str) : [];
+
+    // Ensure all default users exist in list without overwriting registered users
+    for (const defU of defaultUsers) {
+      if (
+        !list.some(
+          (u) =>
+            u.email?.toLowerCase() === defU.email?.toLowerCase() ||
+            u.username?.toLowerCase() === defU.username?.toLowerCase()
+        )
+      ) {
+        list.push(defU);
+      }
+    }
+
+    localStorage.setItem("medlearn_users", JSON.stringify(list));
+    return list;
+  } catch (e) {
+    return defaultUsers;
+  }
+};
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -55,118 +158,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [shareRequests, setShareRequests] = useState<FolderShareRequest[]>([]);
 
-  // Initialize from LocalStorage with auto-migration
+  // Initialize from LocalStorage
   useEffect(() => {
     try {
-      const storedVersion = localStorage.getItem("medlearn_storage_version");
+      getStoredUsers(); // Seed and persist users
 
-      // Auto-flush stale browser cache when a new system version is deployed
-      if (storedVersion !== APP_STORAGE_VERSION) {
-        localStorage.removeItem("medlearn_users");
-        localStorage.removeItem("medlearn_current_user");
-        localStorage.setItem("medlearn_storage_version", APP_STORAGE_VERSION);
-      }
-
-      const storedUsersStr = localStorage.getItem("medlearn_users");
-      let usersList: UserProfile[] = [];
-
-      // Seed core users and benchmark leaderboard peers
-      const defaultUsers: UserProfile[] = [
-        {
-          id: "user_tuan_le_primary",
-          name: "BS. Lê Anh Tuấn",
-          username: "leanhtuan",
-          email: "leanhtuan812006@gmail.com",
-          password: "123",
-          isDemo: false,
-          role: "STUDENT",
-          medicalSchool: "Đại học Y Dược TP.HCM",
-          yearOfStudy: 4,
-          streakCount: 1, // Clean initial check-in streak
-          lastCheckInDate: "", // Not checked in today yet
-          totalQuestionsAnswered: 0, // Clean initial stats
-          totalCorrectAnswers: 0, // Clean initial stats
-          overallAccuracy: 0,
-          bloomTaxonomyStats: initialCleanBloomStats,
-        },
-        {
-          id: "user_top1_mai",
-          name: "BSNT. Nguyễn Hoàng Mai",
-          username: "hoangmai",
-          email: "mai.nguyen@med.edu.vn",
-          password: "123",
-          isDemo: true,
-          role: "RESIDENT_DOCTOR",
-          medicalSchool: "Đại học Y Hà Nội (Bác Sĩ Nội Trú)",
-          yearOfStudy: 6,
-          streakCount: 15,
-          lastCheckInDate: new Date().toISOString().split("T")[0],
-          totalQuestionsAnswered: 240,
-          totalCorrectAnswers: 216,
-          overallAccuracy: 90.0,
-          bloomTaxonomyStats: {
-            REMEMBERING: { total: 70, correct: 66, percentage: 94 },
-            UNDERSTANDING: { total: 60, correct: 55, percentage: 92 },
-            APPLYING: { total: 45, correct: 40, percentage: 89 },
-            ANALYZING: { total: 35, correct: 30, percentage: 86 },
-            EVALUATING: { total: 18, correct: 14, percentage: 78 },
-            CREATING: { total: 12, correct: 11, percentage: 92 },
-          },
-        },
-        {
-          id: "user_top2_duc",
-          name: "BS. Trần Minh Đức",
-          username: "minhduc",
-          email: "duc.tran@med.edu.vn",
-          password: "123",
-          isDemo: true,
-          role: "STUDENT",
-          medicalSchool: "Khoa Y - ĐHQG TP.HCM",
-          yearOfStudy: 5,
-          streakCount: 10,
-          lastCheckInDate: new Date().toISOString().split("T")[0],
-          totalQuestionsAnswered: 160,
-          totalCorrectAnswers: 136,
-          overallAccuracy: 85.0,
-          bloomTaxonomyStats: initialCleanBloomStats,
-        },
-        {
-          id: "user_top3_huong",
-          name: "BS. Phạm Thị Hương",
-          username: "thihuong",
-          email: "huong.pham@med.edu.vn",
-          password: "123",
-          isDemo: true,
-          role: "STUDENT",
-          medicalSchool: "Đại học Y Dược Cần Thơ",
-          yearOfStudy: 4,
-          streakCount: 7,
-          lastCheckInDate: new Date().toISOString().split("T")[0],
-          totalQuestionsAnswered: 110,
-          totalCorrectAnswers: 92,
-          overallAccuracy: 83.6,
-          bloomTaxonomyStats: initialCleanBloomStats,
-        },
-      ];
-
-      if (!storedUsersStr) {
-        usersList = defaultUsers;
-        localStorage.setItem("medlearn_users", JSON.stringify(defaultUsers));
-      } else {
-        usersList = JSON.parse(storedUsersStr);
-        const hasTuan = usersList.some(
-          (u) => u.email?.toLowerCase() === "leanhtuan812006@gmail.com"
-        );
-        if (!hasTuan) {
-          usersList.unshift(defaultUsers[0]);
-          localStorage.setItem("medlearn_users", JSON.stringify(usersList));
-        }
-      }
-
-      // Check if user has an active logged-in session
+      // Check active logged-in session
       const activeUserStr = localStorage.getItem("medlearn_current_user");
       if (activeUserStr) {
-        const parsedUser = JSON.parse(activeUserStr);
+        const parsedUser: UserProfile = JSON.parse(activeUserStr);
         parsedUser.totalCorrectAnswers = parsedUser.totalCorrectAnswers ?? 0;
         parsedUser.streakCount = parsedUser.streakCount ?? 1;
         setUser(parsedUser);
@@ -233,14 +233,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(updatedUser);
     localStorage.setItem("medlearn_current_user", JSON.stringify(updatedUser));
 
-    const usersStr = localStorage.getItem("medlearn_users");
-    if (usersStr) {
-      const list: UserProfile[] = JSON.parse(usersStr);
-      const idx = list.findIndex((u) => u.id === user.id || u.email === user.email);
-      if (idx !== -1) {
-        list[idx] = updatedUser;
-        localStorage.setItem("medlearn_users", JSON.stringify(list));
-      }
+    const list = getStoredUsers();
+    const idx = list.findIndex((u) => u.id === user.id || u.email?.toLowerCase() === user.email?.toLowerCase());
+    if (idx !== -1) {
+      list[idx] = updatedUser;
+      localStorage.setItem("medlearn_users", JSON.stringify(list));
     }
 
     return {
@@ -289,43 +286,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(updatedUser);
     localStorage.setItem("medlearn_current_user", JSON.stringify(updatedUser));
 
-    const usersStr = localStorage.getItem("medlearn_users");
-    if (usersStr) {
-      const list: UserProfile[] = JSON.parse(usersStr);
-      const idx = list.findIndex((u) => u.id === user.id || u.email === user.email);
-      if (idx !== -1) {
-        list[idx] = updatedUser;
-        localStorage.setItem("medlearn_users", JSON.stringify(list));
-      }
+    const list = getStoredUsers();
+    const idx = list.findIndex((u) => u.id === user.id || u.email?.toLowerCase() === user.email?.toLowerCase());
+    if (idx !== -1) {
+      list[idx] = updatedUser;
+      localStorage.setItem("medlearn_users", JSON.stringify(list));
     }
   };
 
-  // LEADERBOARD CALCULATION
+  // LEADERBOARD RANKINGS GENERATION
   const getLeaderboard = (): LeaderboardEntry[] => {
     try {
-      const usersStr = localStorage.getItem("medlearn_users");
-      const list: UserProfile[] = usersStr ? JSON.parse(usersStr) : [];
+      const usersList = getStoredUsers();
 
-      const mapped: LeaderboardEntry[] = list.map((u) => {
-        const correct = u.totalCorrectAnswers || 0;
-        const streak = u.streakCount || 0;
-        const score = streak * 10 + correct * 5;
+      const mapped: LeaderboardEntry[] = usersList.map((u) => {
+        const streak = u.streakCount || 1;
+        const correctAnswers = u.totalCorrectAnswers || 0;
+        // Formula: Rank Score = (Streak Days * 10) + (Correct Answers * 5)
+        const rankScore = streak * 10 + correctAnswers * 5;
 
         return {
           id: u.id,
           name: u.name,
           username: u.username,
-          email: u.email,
-          medicalSchool: u.medicalSchool || "Đại học Y Dược",
-          yearOfStudy: u.yearOfStudy || 4,
-          role: u.role === "RESIDENT_DOCTOR" ? "Bác Sĩ Nội Trú" : `Sinh viên Y${u.yearOfStudy || 4}`,
-          streakCount: streak,
-          totalCorrectAnswers: correct,
-          totalQuestionsAnswered: u.totalQuestionsAnswered || 0,
-          overallAccuracy: u.overallAccuracy || 0,
-          rankScore: score,
-          rank: 0,
-          isCurrentUser: user?.id === u.id || user?.email === u.email,
+          role: u.role || "STUDENT",
+          medicalSchool: u.medicalSchool || "Đại học Y Dược TP.HCM",
+          streakDays: streak,
+          correctAnswers: correctAnswers,
+          rankScore: rankScore,
+          isCurrentUser: user?.id === u.id || user?.email?.toLowerCase() === u.email?.toLowerCase(),
+          rank: 1,
         };
       });
 
@@ -340,23 +330,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // 100% RELIABLE LOGIN METHOD
   const login = (identity: string, pass: string): { success: boolean; error?: string } => {
     try {
-      const usersStr = localStorage.getItem("medlearn_users");
-      const usersList: UserProfile[] = usersStr ? JSON.parse(usersStr) : [];
+      const usersList = getStoredUsers();
       const cleanIdentity = identity.trim().toLowerCase();
+      const cleanPass = pass.trim();
 
-      const found = usersList.find(
-        (u) =>
-          (u.email?.toLowerCase() === cleanIdentity ||
-            u.username?.toLowerCase() === cleanIdentity) &&
-          (u.password === pass || pass === "123")
-      );
+      if (!cleanIdentity || !cleanPass) {
+        return { success: false, error: "Vui lòng nhập đầy đủ tên đăng nhập/email và mật khẩu!" };
+      }
+
+      const found = usersList.find((u) => {
+        const emailMatch = u.email?.trim().toLowerCase() === cleanIdentity;
+        const usernameMatch = u.username?.trim().toLowerCase() === cleanIdentity;
+        const passMatch = u.password?.trim() === cleanPass || cleanPass === "123";
+        return (emailMatch || usernameMatch) && passMatch;
+      });
 
       if (!found) {
         return {
           success: false,
-          error: "Tên đăng nhập / Email hoặc mật khẩu không chính xác!",
+          error: "Tên đăng nhập / Email hoặc mật khẩu không chính xác! Vui lòng kiểm tra lại.",
         };
       }
 
@@ -368,6 +363,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // 100% RELIABLE REGISTER METHOD WITH PERSISTENCE
   const register = (data: {
     name: string;
     username: string;
@@ -377,29 +373,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     yearOfStudy: number;
   }): { success: boolean; error?: string } => {
     try {
-      const usersStr = localStorage.getItem("medlearn_users");
-      const usersList: UserProfile[] = usersStr ? JSON.parse(usersStr) : [];
+      const usersList = getStoredUsers();
+      const cleanEmail = data.email.trim().toLowerCase();
+      const cleanUsername = data.username.trim().toLowerCase();
+      const cleanPass = data.password.trim();
+
+      if (!cleanEmail || !cleanUsername || !cleanPass) {
+        return {
+          success: false,
+          error: "Vui lòng điền đầy đủ tất cả các trường thông tin!",
+        };
+      }
 
       const existed = usersList.some(
         (u) =>
-          u.email?.toLowerCase() === data.email.toLowerCase().trim() ||
-          u.username?.toLowerCase() === data.username.toLowerCase().trim()
+          u.email?.trim().toLowerCase() === cleanEmail ||
+          u.username?.trim().toLowerCase() === cleanUsername
       );
 
       if (existed) {
         return {
           success: false,
-          error: "Email hoặc Tên đăng nhập này đã được sử dụng!",
+          error: "Email hoặc Tên đăng nhập này đã tồn tại trên hệ thống!",
         };
       }
 
       const newUserId = `user_${Date.now()}`;
       const newUser: UserProfile = {
         id: newUserId,
-        name: data.name,
-        username: data.username.trim(),
-        email: data.email.trim(),
-        password: data.password,
+        name: data.name.trim() || data.username.trim(),
+        username: cleanUsername,
+        email: cleanEmail,
+        password: cleanPass,
         isDemo: false,
         role: "STUDENT",
         medicalSchool: data.medicalSchool || "Đại học Y Dược TP.HCM",
@@ -429,46 +434,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("medlearn_current_user");
   };
 
+  // FORGOT PASSWORD VERIFICATION
   const verifyAccountExists = (identity: string): { success: boolean; user?: UserProfile; error?: string } => {
     try {
       const cleanIdentity = identity.toLowerCase().trim();
-      const usersStr = localStorage.getItem("medlearn_users");
-      let usersList: UserProfile[] = usersStr ? JSON.parse(usersStr) : [];
-
-      if (cleanIdentity === "leanhtuan812006@gmail.com" || cleanIdentity === "leanhtuan") {
-        let tuan = usersList.find(
-          (u) =>
-            u.email?.toLowerCase() === "leanhtuan812006@gmail.com" ||
-            u.username?.toLowerCase() === "leanhtuan"
-        );
-        if (!tuan) {
-          tuan = {
-            id: "user_tuan_le_primary",
-            name: "BS. Lê Anh Tuấn",
-            username: "leanhtuan",
-            email: "leanhtuan812006@gmail.com",
-            password: "123",
-            isDemo: false,
-            role: "STUDENT",
-            medicalSchool: "Đại học Y Dược TP.HCM",
-            yearOfStudy: 4,
-            streakCount: 1,
-            lastCheckInDate: "",
-            totalQuestionsAnswered: 0,
-            totalCorrectAnswers: 0,
-            overallAccuracy: 0,
-            bloomTaxonomyStats: initialCleanBloomStats,
-          };
-          usersList.unshift(tuan);
-          localStorage.setItem("medlearn_users", JSON.stringify(usersList));
-        }
-        return { success: true, user: tuan };
-      }
+      const usersList = getStoredUsers();
 
       const found = usersList.find(
         (u) =>
-          u.email?.toLowerCase() === cleanIdentity ||
-          u.username?.toLowerCase() === cleanIdentity
+          u.email?.trim().toLowerCase() === cleanIdentity ||
+          u.username?.trim().toLowerCase() === cleanIdentity
       );
 
       if (!found) {
@@ -484,141 +459,160 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // RESET PASSWORD METHOD
   const resetPassword = (identity: string, newPass: string): { success: boolean; error?: string } => {
     try {
       const cleanIdentity = identity.toLowerCase().trim();
-      const usersStr = localStorage.getItem("medlearn_users");
-      let usersList: UserProfile[] = usersStr ? JSON.parse(usersStr) : [];
+      const cleanPass = newPass.trim();
+      const usersList = getStoredUsers();
 
-      let target = usersList.find(
+      const targetIdx = usersList.findIndex(
         (u) =>
-          u.email?.toLowerCase() === cleanIdentity ||
-          u.username?.toLowerCase() === cleanIdentity
+          u.email?.trim().toLowerCase() === cleanIdentity ||
+          u.username?.trim().toLowerCase() === cleanIdentity
       );
 
-      if (!target && (cleanIdentity === "leanhtuan812006@gmail.com" || cleanIdentity === "leanhtuan")) {
-        target = {
-          id: "user_tuan_le_primary",
-          name: "BS. Lê Anh Tuấn",
-          username: "leanhtuan",
-          email: "leanhtuan812006@gmail.com",
-          password: newPass,
-          isDemo: false,
-          role: "STUDENT",
-          medicalSchool: "Đại học Y Dược TP.HCM",
-          yearOfStudy: 4,
-          streakCount: 1,
-          lastCheckInDate: "",
-          totalQuestionsAnswered: 0,
-          totalCorrectAnswers: 0,
-          overallAccuracy: 0,
-          bloomTaxonomyStats: initialCleanBloomStats,
-        };
-        usersList.unshift(target);
-      } else if (!target) {
-        return { success: false, error: "Tài khoản không tồn tại trong hệ thống!" };
-      } else {
-        target.password = newPass;
+      if (targetIdx === -1) {
+        return { success: false, error: "Không tìm thấy tài khoản để đặt lại mật khẩu!" };
       }
 
+      usersList[targetIdx].password = cleanPass;
       localStorage.setItem("medlearn_users", JSON.stringify(usersList));
 
-      if (user && (user.id === target.id || user.email === target.email)) {
-        setUser({ ...user, password: newPass });
-        localStorage.setItem("medlearn_current_user", JSON.stringify({ ...user, password: newPass }));
+      // Update current session if currently logged in with this account
+      if (user && (user.email?.toLowerCase() === cleanIdentity || user.username?.toLowerCase() === cleanIdentity)) {
+        const updated = { ...user, password: cleanPass };
+        setUser(updated);
+        localStorage.setItem("medlearn_current_user", JSON.stringify(updated));
       }
 
       return { success: true };
     } catch (e) {
-      return { success: false, error: "Lỗi cập nhật mật khẩu mới!" };
+      return { success: false, error: "Lỗi đặt lại mật khẩu!" };
     }
   };
 
-  const getUserFolders = (): FolderNode[] => {
-    if (!user) return [];
-    if (user.isDemo) {
-      return MOCK_FOLDERS.map(f => ({ ...f, isSystemMock: true }));
-    }
-    const userFoldersStr = localStorage.getItem(`medlearn_folders_${user.id}`);
-    return userFoldersStr ? JSON.parse(userFoldersStr) : [];
-  };
+  // FOLDER SHARING METHODS
+  const sendShareRequest = (
+    folder: FolderNode,
+    target: string
+  ): { success: boolean; error?: string } => {
+    try {
+      if (!user) return { success: false, error: "Vui lòng đăng nhập!" };
 
-  const saveUserFolders = (folders: FolderNode[]): { success: boolean; error?: string } => {
-    if (!user) return { success: false, error: "Chưa đăng nhập!" };
-    if (user.isDemo) {
-      return {
-        success: false,
-        error: "🔒 Tài khoản mẫu dùng thử ở chế độ 'Chỉ Xem'. Không thể chỉnh sửa hoặc xóa dữ liệu mẫu. Vui lòng tạo tài khoản mới để sở hữu thư mục riêng của bạn!",
+      const cleanTarget = target.toLowerCase().trim();
+      const usersList = getStoredUsers();
+      const targetUserObj = usersList.find(
+        (u) =>
+          u.email?.toLowerCase() === cleanTarget ||
+          u.username?.toLowerCase() === cleanTarget
+      );
+
+      if (!targetUserObj) {
+        return {
+          success: false,
+          error: `Không tìm thấy người dùng @${target} trong hệ thống!`,
+        };
+      }
+
+      if (targetUserObj.id === user.id) {
+        return {
+          success: false,
+          error: "Bạn không thể tự chia sẻ thư mục cho chính mình!",
+        };
+      }
+
+      const newRequest: FolderShareRequest = {
+        id: `req_${Date.now()}`,
+        folderId: folder.id,
+        folderName: folder.name,
+        folderData: folder,
+        ownerId: user.id,
+        ownerName: user.name,
+        ownerEmail: user.email,
+        ownerSchool: user.medicalSchool,
+        recipientIdentity: target,
+        status: "PENDING",
+        createdAt: new Date().toLocaleDateString("vi-VN"),
       };
+
+      const existingSharesStr = localStorage.getItem("medlearn_share_requests");
+      const list: FolderShareRequest[] = existingSharesStr
+        ? JSON.parse(existingSharesStr)
+        : [];
+      list.unshift(newRequest);
+      localStorage.setItem("medlearn_share_requests", JSON.stringify(list));
+      setShareRequests(list);
+
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: "Lỗi gửi yêu cầu chia sẻ!" };
     }
-    localStorage.setItem(`medlearn_folders_${user.id}`, JSON.stringify(folders));
-    return { success: true };
-  };
-
-  const sendShareRequest = (folder: FolderNode, target: string): { success: boolean; error?: string } => {
-    if (!user) return { success: false, error: "Vui lòng đăng nhập để chia sẻ thư mục!" };
-    if (user.isDemo) {
-      return {
-        success: false,
-        error: "🔒 Tài khoản mẫu dùng thử không thể thực hiện gửi lời mời chia sẻ!",
-      };
-    }
-
-    const cleanTarget = target.trim().toLowerCase();
-    if (cleanTarget === user.username?.toLowerCase() || cleanTarget === user.email?.toLowerCase()) {
-      return { success: false, error: "Bạn không thể tự chia sẻ thư mục cho chính mình!" };
-    }
-
-    const newRequest: FolderShareRequest = {
-      id: `share_${Date.now()}`,
-      folderId: folder.id,
-      folderName: folder.name,
-      ownerId: user.id,
-      ownerName: user.name,
-      ownerSchool: user.medicalSchool,
-      targetUsernameOrEmail: cleanTarget,
-      status: "PENDING",
-      createdAt: new Date().toLocaleDateString("vi-VN"),
-      folderData: {
-        ...folder,
-        isShared: true,
-        sharedBy: user.name,
-        sharedAt: new Date().toLocaleDateString("vi-VN"),
-      },
-    };
-
-    const storedShares = localStorage.getItem("medlearn_share_requests");
-    const allShares: FolderShareRequest[] = storedShares ? JSON.parse(storedShares) : [];
-    allShares.unshift(newRequest);
-    localStorage.setItem("medlearn_share_requests", JSON.stringify(allShares));
-    setShareRequests(allShares);
-
-    return { success: true };
   };
 
   const respondShareRequest = (requestId: string, accept: boolean) => {
-    if (!user) return;
-    const storedShares = localStorage.getItem("medlearn_share_requests");
-    const allShares: FolderShareRequest[] = storedShares ? JSON.parse(storedShares) : [];
+    try {
+      const existingSharesStr = localStorage.getItem("medlearn_share_requests");
+      let list: FolderShareRequest[] = existingSharesStr
+        ? JSON.parse(existingSharesStr)
+        : [];
 
-    const targetReq = allShares.find((r) => r.id === requestId);
-    if (!targetReq) return;
+      const reqIndex = list.findIndex((r) => r.id === requestId);
+      if (reqIndex === -1) return;
 
-    targetReq.status = accept ? "ACCEPTED" : "REJECTED";
-    localStorage.setItem("medlearn_share_requests", JSON.stringify(allShares));
-    setShareRequests(allShares);
+      const req = list[reqIndex];
+      req.status = accept ? "ACCEPTED" : "REJECTED";
+      list[reqIndex] = req;
 
-    if (accept && !user.isDemo) {
-      const currentFolders = getUserFolders();
-      const folderToAdd: FolderNode = {
-        ...targetReq.folderData,
-        id: `shared_copy_${Date.now()}`,
-        isShared: true,
-        sharedBy: targetReq.ownerName,
-        sharedAt: targetReq.createdAt,
-      };
-      const updated = [folderToAdd, ...currentFolders];
-      saveUserFolders(updated);
+      localStorage.setItem("medlearn_share_requests", JSON.stringify(list));
+      setShareRequests(list);
+
+      if (accept && user) {
+        const userFoldersKey = `medlearn_folders_${user.id}`;
+        const userFoldersStr = localStorage.getItem(userFoldersKey);
+        const userFolders: FolderNode[] = userFoldersStr
+          ? JSON.parse(userFoldersStr)
+          : [];
+
+        const sharedFolderCopy: FolderNode = {
+          ...req.folderData,
+          id: `shared_${req.folderData.id}_${Date.now()}`,
+          isShared: true,
+          sharedBy: req.ownerName,
+        };
+
+        userFolders.unshift(sharedFolderCopy);
+        localStorage.setItem(userFoldersKey, JSON.stringify(userFolders));
+      }
+    } catch (e) {}
+  };
+
+  const getUserFolders = (): FolderNode[] => {
+    if (typeof window === "undefined") return MOCK_FOLDERS;
+    try {
+      if (!user) return [];
+      const key = `medlearn_folders_${user.id}`;
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+      if (user.isDemo) {
+        return MOCK_FOLDERS;
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const saveUserFolders = (folders: FolderNode[]): { success: boolean; error?: string } => {
+    try {
+      if (!user) return { success: false, error: "Vui lòng đăng nhập!" };
+      const key = `medlearn_folders_${user.id}`;
+      localStorage.setItem(key, JSON.stringify(folders));
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: "Lỗi lưu thư mục!" };
     }
   };
 

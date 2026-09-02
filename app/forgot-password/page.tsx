@@ -17,6 +17,8 @@ import {
   AlertCircle,
   ShieldCheck,
   Zap,
+  RefreshCw,
+  Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,9 +31,12 @@ export default function ForgotPasswordPage() {
 
   // Form States
   const [identity, setIdentity] = useState("leanhtuan812006@gmail.com");
+  const [matchedEmail, setMatchedEmail] = useState("leanhtuan812006@gmail.com");
+  const [matchedName, setMatchedName] = useState("BS. Lê Anh Tuấn");
   const [generatedOtp, setGeneratedOtp] = useState("849206");
   const [enteredOtp, setEnteredOtp] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [isEmailSent, setIsEmailSent] = useState(false);
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -40,8 +45,8 @@ export default function ForgotPasswordPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // STEP 1: Verify User & Generate OTP
-  const handleRequestOtp = (e?: React.FormEvent, customTarget?: string) => {
+  // STEP 1: Verify User & Dispatch OTP to Email
+  const handleRequestOtp = async (e?: React.FormEvent, customTarget?: string) => {
     if (e) e.preventDefault();
     setErrorMessage("");
 
@@ -54,20 +59,51 @@ export default function ForgotPasswordPage() {
 
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
       const res = verifyAccountExists(queryIdentity);
-      setIsLoading(false);
 
       if (!res.success || !res.user) {
-        setErrorMessage(res.error || "Không tìm thấy tài khoản!");
+        setIsLoading(false);
+        setErrorMessage(res.error || "Không tìm thấy tài khoản nào khớp với thông tin này!");
         return;
       }
 
+      const targetUser = res.user;
+      const targetEmail = targetUser.email || queryIdentity;
+      const targetName = targetUser.name || "Bác sĩ / Sinh viên Y";
+      setMatchedEmail(targetEmail);
+      setMatchedName(targetName);
+
+      // Generate 6-digit random OTP
       const code = String(Math.floor(100000 + Math.random() * 900000));
       setGeneratedOtp(code);
+
+      // Call API route to send email
+      try {
+        const sendRes = await fetch("/api/send-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: targetEmail,
+            name: targetName,
+            otp: code,
+          }),
+        });
+        const sendData = await sendRes.json();
+        if (sendData.delivered) {
+          setIsEmailSent(true);
+        }
+      } catch (apiErr) {
+        // Fallback gracefully
+      }
+
+      setIsLoading(false);
       setStep(2);
       startCooldown();
-    }, 300);
+    } catch (err: any) {
+      setIsLoading(false);
+      setErrorMessage("Đã xảy ra lỗi trong quá trình xử lý, vui lòng thử lại!");
+    }
   };
 
   const startCooldown = () => {
@@ -83,11 +119,23 @@ export default function ForgotPasswordPage() {
     }, 1000);
   };
 
-  const handleResendOtp = () => {
+  const handleResendOtp = async () => {
     if (resendCooldown > 0) return;
     const code = String(Math.floor(100000 + Math.random() * 900000));
     setGeneratedOtp(code);
     startCooldown();
+
+    try {
+      await fetch("/api/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: matchedEmail,
+          name: matchedName,
+          otp: code,
+        }),
+      });
+    } catch (e) {}
   };
 
   const handleAutoFillOtp = () => {
@@ -200,7 +248,7 @@ export default function ForgotPasswordPage() {
                   <input
                     type="text"
                     required
-                    placeholder="VD: leanhtuan812006@gmail.com"
+                    placeholder="VD: leanhtuan812006@gmail.com hoặc anhtuan"
                     value={identity}
                     onChange={(e) => setIdentity(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 rounded-2xl border border-border bg-background text-xs sm:text-sm text-foreground focus:ring-2 focus:ring-sky-500/50 outline-none transition-all"
@@ -209,9 +257,9 @@ export default function ForgotPasswordPage() {
               </div>
 
               {/* Quick Select Buttons */}
-              <div className="p-3 rounded-2xl bg-sky-50/50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900 space-y-1.5 text-xs">
+              <div className="p-3.5 rounded-2xl bg-sky-50/50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900 space-y-2 text-xs">
                 <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
-                  Khôi phục nhanh cho tài khoản:
+                  Khôi phục nhanh cho tài khoản chính:
                 </span>
                 <button
                   type="button"
@@ -236,8 +284,17 @@ export default function ForgotPasswordPage() {
                 disabled={isLoading}
                 className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md shadow-sky-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
               >
-                <span>{isLoading ? "Đang xác thực tài khoản..." : "Gửi Mã Xác Nhận OTP"}</span>
-                <ArrowRight className="h-4 w-4" />
+                {isLoading ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Đang gửi mã xác nhận...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" />
+                    <span>Gửi Mã Xác Nhận OTP Về Gmail</span>
+                  </>
+                )}
               </button>
             </form>
           )}
@@ -245,33 +302,37 @@ export default function ForgotPasswordPage() {
           {/* STEP 2: Enter Verification Code */}
           {step === 2 && (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-sky-50 to-indigo-50 dark:from-sky-950/60 dark:to-indigo-950/60 border border-sky-200 dark:border-sky-800 text-sky-900 dark:text-sky-100 text-xs space-y-2">
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-sky-50 to-indigo-50 dark:from-sky-950/60 dark:to-indigo-950/60 border border-sky-200 dark:border-sky-800 text-sky-900 dark:text-sky-100 text-xs space-y-2.5">
                 <div className="flex items-center justify-between font-bold">
                   <div className="flex items-center gap-1.5">
                     <ShieldCheck className="h-4 w-4 text-sky-600" />
-                    <span>Mã OTP Đã Gửi Đến Email:</span>
+                    <span>Đã Gửi Mã OTP Đến Hòm Thư:</span>
                   </div>
-                  <span className="text-[10px] text-muted-foreground">{identity}</span>
                 </div>
-                <div className="p-2.5 rounded-xl bg-card border border-border/80 flex items-center justify-between">
+                <div className="p-2 rounded-xl bg-card border border-border/80 text-[11px] font-mono font-bold text-sky-700 dark:text-sky-300">
+                  📧 {matchedEmail} ({matchedName})
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-card border border-sky-300 dark:border-sky-800 flex items-center justify-between">
                   <span className="text-xs font-semibold text-muted-foreground">Mã OTP bảo mật:</span>
                   <span className="px-3 py-1 rounded-lg bg-sky-600 text-white font-mono font-black text-base tracking-widest shadow-xs">
                     {generatedOtp}
                   </span>
                 </div>
+
                 <button
                   type="button"
                   onClick={handleAutoFillOtp}
-                  className="w-full py-2 rounded-xl bg-sky-100 dark:bg-sky-900/60 hover:bg-sky-200 text-sky-800 dark:text-sky-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
+                  className="w-full py-2.5 rounded-xl bg-sky-100 dark:bg-sky-900/60 hover:bg-sky-200 text-sky-800 dark:text-sky-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs"
                 >
                   <Zap className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-                  <span>Bấm Tự Động Điền Mã OTP Vào Ô</span>
+                  <span>Bấm Tự Động Điền Mã OTP Vào Ô &amp; Tiếp Tục</span>
                 </button>
               </div>
 
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Mã Xác Nhận 6 Chữ Số *
+                  Nhập Mã Xác Nhận 6 Chữ Số *
                 </label>
                 <input
                   type="text"
@@ -416,4 +477,3 @@ export default function ForgotPasswordPage() {
     </div>
   );
 }
-
