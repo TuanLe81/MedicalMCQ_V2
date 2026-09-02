@@ -385,23 +385,14 @@ export default function HomePage() {
               </span>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
               <a
                 href="https://zalo.me/0813194249"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600/80 hover:bg-blue-600 text-white font-bold shadow-xs transition-all hover:scale-105"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-blue-600/80 hover:bg-blue-600 text-white font-bold shadow-xs transition-all hover:scale-105"
               >
                 <span>💬 Zalo: 0813194249</span>
-              </a>
-
-              <a
-                href="https://www.facebook.com/le.tuan.934451"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-900/60 hover:bg-indigo-900 text-white font-bold shadow-xs transition-all hover:scale-105"
-              >
-                <span>🌐 Facebook: Lê Tuấn</span>
               </a>
             </div>
           </div>

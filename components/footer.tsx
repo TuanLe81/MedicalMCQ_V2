@@ -10,8 +10,8 @@ import {
   Phone,
   MessageCircle,
   ExternalLink,
-  Facebook,
   User,
+  Mail,
 } from "lucide-react";
 
 export function Footer() {
@@ -97,7 +97,7 @@ export function Footer() {
                   href="https://zalo.me/0813194249"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-between p-2 rounded-xl bg-muted/50 hover:bg-sky-50 dark:hover:bg-sky-950/50 border border-border/80 text-muted-foreground hover:text-sky-600 transition-all font-semibold"
+                  className="flex items-center justify-between p-2.5 rounded-xl bg-muted/50 hover:bg-sky-50 dark:hover:bg-sky-950/50 border border-border/80 text-muted-foreground hover:text-sky-600 transition-all font-semibold"
                 >
                   <div className="flex items-center gap-2">
                     <span className="px-1.5 py-0.5 rounded-md bg-blue-600 text-[10px] font-black text-white">
@@ -108,19 +108,9 @@ export function Footer() {
                   <ExternalLink className="h-3.5 w-3.5 opacity-70" />
                 </a>
 
-                {/* FACEBOOK CONTACT */}
-                <a
-                  href="https://www.facebook.com/le.tuan.934451"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-between p-2 rounded-xl bg-muted/50 hover:bg-blue-50 dark:hover:bg-blue-950/50 border border-border/80 text-muted-foreground hover:text-blue-600 transition-all font-semibold"
-                >
-                  <div className="flex items-center gap-2">
-                    <Facebook className="h-4 w-4 text-blue-600 fill-blue-600" />
-                    <span>Facebook: le.tuan.934451</span>
-                  </div>
-                  <ExternalLink className="h-3.5 w-3.5 opacity-70" />
-                </a>
+                <div className="text-[11px] text-muted-foreground leading-relaxed pt-1">
+                  Liên hệ trao đổi chuyên môn, đóng góp ngân hàng đề thi hoặc hỗ trợ kỹ thuật qua Zalo.
+                </div>
               </div>
             </div>
           </div>
@@ -131,23 +121,14 @@ export function Footer() {
           <p>
             © 2026 MediMind Platform • Dự án do <strong>Nhà sáng tạo Lê Anh Tuấn</strong> thiết kế &amp; phát triển.
           </p>
-          <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
             <a
               href="https://zalo.me/0813194249"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-sky-600 font-semibold transition-colors"
+              className="hover:text-sky-600 font-semibold transition-colors flex items-center gap-1.5"
             >
               💬 Zalo: 0813194249
-            </a>
-            <span className="opacity-40">•</span>
-            <a
-              href="https://www.facebook.com/le.tuan.934451"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-blue-600 font-semibold transition-colors"
-            >
-              🌐 Facebook: Lê Tuấn
             </a>
           </div>
         </div>

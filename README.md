@@ -195,7 +195,6 @@ Mở trình duyệt và truy cập: **[http://localhost:3000](http://localhost:3
 
 - **Họ và Tên**: **Lê Anh Tuấn**
 - **ZALO**: [`0813194249`](https://zalo.me/0813194249)
-- **FACEBOOK**: [`https://www.facebook.com/le.tuan.934451`](https://www.facebook.com/le.tuan.934451)
 - **Email**: `leanhtuan812006@gmail.com`
 - **Dự Án**: MediMind - Nền tảng Học tập & Đánh giá Năng lực Y Khoa theo Thang đo Tư duy Bloom.
 
