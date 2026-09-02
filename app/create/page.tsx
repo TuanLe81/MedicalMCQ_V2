@@ -42,10 +42,20 @@ export default function CreateStudioPage() {
   const { user, getUserFolders, saveUserFolders, saveUserDeck } = useAuth();
   const [activeTab, setActiveTab] = useState<"AI_GEN" | "BATCH" | "MCQ" | "FLASHCARD">("AI_GEN");
 
-  // Destination Folder State
+  // Destination Folder State with Full Hierarchy (Root + Subfolders)
   const [availableFolders, setAvailableFolders] = useState<FolderNode[]>([]);
+  const [flattenedFolders, setFlattenedFolders] = useState<Array<{
+    id: string;
+    name: string;
+    fullPath: string;
+    depth: number;
+    color?: string;
+    isShared?: boolean;
+    deckCount: number;
+  }>>([]);
   const [targetFolderId, setTargetFolderId] = useState<string>("CREATE_NEW");
   const [newFolderName, setNewFolderName] = useState<string>("Thư Mục Y Khoa Mới");
+  const [newFolderParentId, setNewFolderParentId] = useState<string>("ROOT");
 
   // Specialty States with "Mục Khác"
   const [targetSpecialty, setTargetSpecialty] = useState("Nội Tim Mạch");
@@ -100,16 +110,56 @@ export default function CreateStudioPage() {
 
   const bloomKeys = Object.keys(BLOOM_TAXONOMY_MAP) as BloomLevel[];
 
-  // Load User Folders
+  // Recursive helper to flatten folder hierarchy into an ordered list with depth & paths
+  const flattenFolderHierarchy = (nodes: FolderNode[], depth = 0, parentPath = ""): Array<{
+    id: string;
+    name: string;
+    fullPath: string;
+    depth: number;
+    color?: string;
+    isShared?: boolean;
+    deckCount: number;
+  }> => {
+    let list: Array<{
+      id: string;
+      name: string;
+      fullPath: string;
+      depth: number;
+      color?: string;
+      isShared?: boolean;
+      deckCount: number;
+    }> = [];
+
+    for (const f of nodes) {
+      const currentPath = parentPath ? `${parentPath} / ${f.name}` : f.name;
+      list.push({
+        id: f.id,
+        name: f.name,
+        fullPath: currentPath,
+        depth,
+        color: f.color,
+        isShared: f.isShared,
+        deckCount: (f.decks || []).length,
+      });
+      if (f.children && f.children.length > 0) {
+        list = list.concat(flattenFolderHierarchy(f.children, depth + 1, currentPath));
+      }
+    }
+    return list;
+  };
+
+  // Load User Folders and extract full hierarchical tree (including subfolders)
   useEffect(() => {
     const folders = getUserFolders();
     setAvailableFolders(folders);
-    if (folders.length > 0) {
-      setTargetFolderId(folders[0].id);
+    const flat = flattenFolderHierarchy(folders);
+    setFlattenedFolders(flat);
+    if (flat.length > 0) {
+      setTargetFolderId(flat[0].id);
     } else {
       setTargetFolderId("CREATE_NEW");
     }
-  }, []);
+  }, [user]);
 
   const sampleMCQText = `[Vignette] Bệnh nhân nam 62 tuổi, tiền căn tăng huyết áp và đái tháo đường, nhập viện vì khó thở khi nằm, phù 2 chi dưới, ran ẩm 2 đáy phổi, T3 Gallop ở mỏm tim.
 Câu hỏi: Dấu hiệu thăm khám lâm sàng nào có độ đặc hiệu cao nhất cho chẩn đoán suy tim sung huyết ở bệnh nhân này?
@@ -390,11 +440,18 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
     const count = isMCQ ? parsedMCQs.length : parsedFlashcards.length;
 
     let targetFolderTitle = "Thư Mục Mới";
-    const matchedFolder = availableFolders.find((f) => f.id === targetFolderId);
-    if (matchedFolder) {
-      targetFolderTitle = matchedFolder.name;
-    } else if (newFolderName) {
-      targetFolderTitle = newFolderName;
+    if (targetFolderId === "CREATE_NEW") {
+      const parentObj = flattenedFolders.find((f) => f.id === newFolderParentId);
+      if (parentObj) {
+        targetFolderTitle = `${parentObj.fullPath} / ${newFolderName}`;
+      } else {
+        targetFolderTitle = newFolderName;
+      }
+    } else {
+      const matchedFolder = flattenedFolders.find((f) => f.id === targetFolderId);
+      if (matchedFolder) {
+        targetFolderTitle = matchedFolder.fullPath;
+      }
     }
 
     const newDeck: Deck = {
@@ -409,8 +466,8 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
       updatedAt: new Date().toISOString().split("T")[0],
     };
 
-    // Save strictly scoped to current user and attached to destination folder
-    saveUserDeck(newDeck, targetFolderId, newFolderName);
+    // Save strictly scoped to current user and attached to destination folder (root or subfolder)
+    saveUserDeck(newDeck, targetFolderId, newFolderName, newFolderParentId);
 
     // Open Import Success Modal
     setSuccessModalData({
@@ -462,11 +519,11 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Folder Destination Selector */}
-            <div className="space-y-1.5">
+            {/* Folder Destination Selector with Full Tree & Subfolders */}
+            <div className="space-y-2">
               <label className="block text-xs font-bold text-foreground flex items-center justify-between">
                 <span>📁 Đích Thư Mục Trong &ldquo;Cây Thư Mục&rdquo; *</span>
-                <span className="text-[10px] text-muted-foreground">Lưu vào folder riêng của bạn</span>
+                <span className="text-[10px] text-sky-600 dark:text-sky-400 font-semibold">Hiển thị toàn bộ thư mục &amp; thư mục con</span>
               </label>
 
               <select
@@ -474,24 +531,70 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
                 onChange={(e) => setTargetFolderId(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs font-bold text-foreground outline-none focus:ring-2 focus:ring-sky-500/50"
               >
-                <option value="CREATE_NEW">➕ [+] Tạo Thư Mục Mới Ngay...</option>
-                {availableFolders.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    📁 {f.name} {f.isShared ? "(Được chia sẻ)" : ""}
-                  </option>
-                ))}
+                <option value="CREATE_NEW">➕ [+] Tạo Thư Mục Mới (Tùy Chọn Vị Trí)...</option>
+                {flattenedFolders.length > 0 && (
+                  <optgroup label="─── TOÀN BỘ CÂY THƯ MỤC CỦA BẠN (CẢ THƯ MỤC CON) ───">
+                    {flattenedFolders.map((f) => {
+                      const indent = f.depth > 0 ? "　".repeat(f.depth) + "↳ 📂 " : "📁 ";
+                      const levelTag = f.depth === 0 ? "[Gốc]" : `[Con cấp ${f.depth}]`;
+                      return (
+                        <option key={f.id} value={f.id}>
+                          {indent}{f.name} {levelTag} ({f.fullPath}) {f.isShared ? "• [Được chia sẻ]" : ""}
+                        </option>
+                      );
+                    })}
+                  </optgroup>
+                )}
               </select>
 
+              {/* Selected Destination Breadcrumb Preview */}
+              {targetFolderId !== "CREATE_NEW" && (
+                <div className="p-2 rounded-xl bg-sky-50/80 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800 text-[11px] text-sky-800 dark:text-sky-200 flex items-center justify-between gap-2 animate-in fade-in">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <FolderTree className="h-3.5 w-3.5 text-sky-600 shrink-0" />
+                    <span className="truncate">
+                      Đích đến: <strong>{flattenedFolders.find((f) => f.id === targetFolderId)?.fullPath || "Thư mục"}</strong>
+                    </span>
+                  </div>
+                  <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-md bg-sky-600 text-white font-bold">
+                    {flattenedFolders.find((f) => f.id === targetFolderId)?.depth === 0 ? "Thư mục gốc" : `Cấp con ${flattenedFolders.find((f) => f.id === targetFolderId)?.depth}`}
+                  </span>
+                </div>
+              )}
+
+              {/* Create New Folder with Parent Destination Option */}
               {targetFolderId === "CREATE_NEW" && (
-                <div className="pt-1 animate-in fade-in">
-                  <input
-                    type="text"
-                    required
-                    value={newFolderName}
-                    onChange={(e) => setNewFolderName(e.target.value)}
-                    placeholder="Nhập tên thư mục mới (VD: Nội Khoa Y4, Dược Lý, Cấp Cứu...)"
-                    className="w-full px-3.5 py-2 rounded-xl border border-sky-300 dark:border-sky-800 bg-background text-xs font-semibold text-foreground focus:ring-2 focus:ring-sky-500/50 outline-none"
-                  />
+                <div className="p-3 rounded-2xl bg-card border border-sky-200 dark:border-sky-900 shadow-xs space-y-2.5 animate-in fade-in">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-foreground">Tên thư mục mới *</label>
+                    <input
+                      type="text"
+                      required
+                      value={newFolderName}
+                      onChange={(e) => setNewFolderName(e.target.value)}
+                      placeholder="Nhập tên thư mục mới (VD: Nội Khoa Y4, Dược Lý, Cấp Cứu...)"
+                      className="w-full px-3 py-2 rounded-xl border border-sky-300 dark:border-sky-800 bg-background text-xs font-semibold text-foreground focus:ring-2 focus:ring-sky-500/50 outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-foreground">Vị trí tạo thư mục mới trong Cây Thư Mục:</label>
+                    <select
+                      value={newFolderParentId}
+                      onChange={(e) => setNewFolderParentId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-border bg-background text-xs font-medium text-foreground outline-none focus:ring-2 focus:ring-sky-500/50"
+                    >
+                      <option value="ROOT">📁 Đặt ở Thư Mục Gốc (Cấp cao nhất)</option>
+                      {flattenedFolders.map((f) => {
+                        const indent = f.depth > 0 ? "　".repeat(f.depth) + "↳ 📂 " : "📁 ";
+                        return (
+                          <option key={`parent_${f.id}`} value={f.id}>
+                            {indent}Làm thư mục con của: {f.name} ({f.fullPath})
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
                 </div>
               )}
             </div>

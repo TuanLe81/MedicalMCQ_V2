@@ -39,9 +39,13 @@ interface AuthContextType {
   respondShareRequest: (requestId: string, accept: boolean) => void;
   getUserFolders: () => FolderNode[];
   saveUserFolders: (folders: FolderNode[]) => { success: boolean; error?: string };
-  // Scoped Decks Management (100% synchronized & isolated per user)
   getUserDecks: (typeFilter?: "MCQ" | "FLASHCARD") => DeckWithFolder[];
-  saveUserDeck: (deck: Deck, targetFolderId: string, newFolderName?: string) => { success: boolean; error?: string };
+  saveUserDeck: (
+    deck: Deck,
+    targetFolderId: string,
+    newFolderName?: string,
+    parentFolderId?: string
+  ) => { success: boolean; error?: string };
   deleteUserDeck: (deckId: string) => { success: boolean; error?: string };
 }
 
@@ -614,7 +618,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   // SAVE DECK PER USER & ATTACH TO TARGET FOLDER
-  const saveUserDeck = (deck: Deck, targetFolderId: string, newFolderName?: string): { success: boolean; error?: string } => {
+  const saveUserDeck = (
+    deck: Deck,
+    targetFolderId: string,
+    newFolderName?: string,
+    parentFolderId?: string
+  ): { success: boolean; error?: string } => {
     if (!user) return { success: false, error: "Vui lòng đăng nhập!" };
 
     // 1. Save to User's Scoped Custom Decks
@@ -639,7 +648,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         children: [],
         createdAt: new Date().toLocaleDateString("vi-VN"),
       };
-      saveUserFolders([newFolder, ...currentFolders]);
+
+      if (parentFolderId && parentFolderId !== "ROOT") {
+        function insertIntoParent(nodes: FolderNode[]): FolderNode[] {
+          return nodes.map((f) => {
+            if (f.id === parentFolderId) {
+              return {
+                ...f,
+                children: [newFolder, ...(f.children || [])],
+              };
+            }
+            if (f.children && f.children.length > 0) {
+              return {
+                ...f,
+                children: insertIntoParent(f.children),
+              };
+            }
+            return f;
+          });
+        }
+        const updated = insertIntoParent(currentFolders);
+        saveUserFolders(updated);
+      } else {
+        saveUserFolders([newFolder, ...currentFolders]);
+      }
     } else {
       function addDeckToTree(nodes: FolderNode[]): FolderNode[] {
         return nodes.map((f) => {
