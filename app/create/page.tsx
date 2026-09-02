@@ -39,7 +39,7 @@ import { cn } from "@/lib/utils";
 
 export default function CreateStudioPage() {
   const router = useRouter();
-  const { user, getUserFolders, saveUserFolders } = useAuth();
+  const { user, getUserFolders, saveUserFolders, saveUserDeck } = useAuth();
   const [activeTab, setActiveTab] = useState<"AI_GEN" | "BATCH" | "MCQ" | "FLASHCARD">("AI_GEN");
 
   // Destination Folder State
@@ -382,26 +382,7 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
     }
   };
 
-  // Helper to add deck to target folder tree
-  const addDeckToFolderTree = (folders: FolderNode[], folderId: string, deck: Deck): FolderNode[] => {
-    return folders.map((f) => {
-      if (f.id === folderId) {
-        return {
-          ...f,
-          decks: [deck, ...(f.decks || [])],
-        };
-      }
-      if (f.children && f.children.length > 0) {
-        return {
-          ...f,
-          children: addDeckToFolderTree(f.children, folderId, deck),
-        };
-      }
-      return f;
-    });
-  };
-
-  // SAVE DECK TO FOLDER TREE & LOCALSTORAGE
+  // SAVE DECK TO FOLDER TREE & USER STORAGE
   const handleSaveToLocalStorage = () => {
     const newDeckId = `custom_deck_${Date.now()}`;
     const isMCQ = batchType === "MCQ";
@@ -428,45 +409,19 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
       updatedAt: new Date().toISOString().split("T")[0],
     };
 
-    try {
-      // 1. Save to custom decks master list
-      const stored = localStorage.getItem("medlearn_custom_decks");
-      const list = stored ? JSON.parse(stored) : [];
-      list.unshift(newDeck);
-      localStorage.setItem("medlearn_custom_decks", JSON.stringify(list));
+    // Save strictly scoped to current user and attached to destination folder
+    saveUserDeck(newDeck, targetFolderId, newFolderName);
 
-      // 2. Attach to destination folder in User's Folder Tree
-      const currentFolders = getUserFolders();
-      if (targetFolderId === "CREATE_NEW") {
-        const newFolder: FolderNode = {
-          id: `folder_${Date.now()}`,
-          name: newFolderName || "Thư Mục Mới",
-          description: `Thư mục môn học ${effectiveSpec}`,
-          color: isMCQ ? "#0284c7" : "#8b5cf6",
-          icon: "Folder",
-          decks: [newDeck],
-          children: [],
-          createdAt: new Date().toLocaleDateString("vi-VN"),
-        };
-        saveUserFolders([newFolder, ...currentFolders]);
-      } else {
-        const updated = addDeckToFolderTree(currentFolders, targetFolderId, newDeck);
-        saveUserFolders(updated);
-      }
-
-      // 3. Open Import Success Modal
-      setSuccessModalData({
-        isOpen: true,
-        title: newDeck.title,
-        type: isMCQ ? "MCQ" : "FLASHCARD",
-        itemCount: count,
-        specialty: effectiveSpec,
-        folderName: targetFolderTitle,
-        deckId: newDeckId,
-      });
-    } catch (e) {
-      // Fallback
-    }
+    // Open Import Success Modal
+    setSuccessModalData({
+      isOpen: true,
+      title: newDeck.title,
+      type: isMCQ ? "MCQ" : "FLASHCARD",
+      itemCount: count,
+      specialty: effectiveSpec,
+      folderName: targetFolderTitle,
+      deckId: newDeckId,
+    });
   };
 
   const handleResetForm = () => {

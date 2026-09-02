@@ -37,6 +37,7 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
     user,
     getUserFolders,
     saveUserFolders,
+    deleteUserDeck,
     shareRequests,
     sendShareRequest,
     respondShareRequest,
@@ -173,31 +174,8 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
       return;
     }
 
-    const deckId = deckToDelete.deck.id;
-
-    // 1. Remove from User's Folder Tree
-    const removeDeckFromHierarchy = (list: FolderNode[]): FolderNode[] => {
-      return list.map((f) => ({
-        ...f,
-        decks: (f.decks || []).filter((d) => d.id !== deckId),
-        children: f.children ? removeDeckFromHierarchy(f.children) : [],
-      }));
-    };
-
-    const updated = removeDeckFromHierarchy(folders);
-    setFolders(updated);
-    saveUserFolders(updated);
-
-    // 2. Remove from Custom Decks in LocalStorage
-    try {
-      const stored = localStorage.getItem("medlearn_custom_decks");
-      if (stored) {
-        const list = JSON.parse(stored);
-        const filtered = list.filter((d: any) => d.id !== deckId);
-        localStorage.setItem("medlearn_custom_decks", JSON.stringify(filtered));
-      }
-    } catch (err) {}
-
+    deleteUserDeck(deckToDelete.deck.id);
+    setFolders(getUserFolders());
     setDeckToDelete(null);
   };
 

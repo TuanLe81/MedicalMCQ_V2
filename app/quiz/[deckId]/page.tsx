@@ -35,7 +35,7 @@ import { cn } from "@/lib/utils";
 export default function QuizPage() {
   const params = useParams();
   const router = useRouter();
-  const { user, recordQuizSubmission, getUserFolders } = useAuth();
+  const { user, recordQuizSubmission, getUserDecks } = useAuth();
 
   const [deckTitle, setDeckTitle] = useState("Bộ Đề Luyện Trắc Nghiệm Y Khoa");
   const [questions, setQuestions] = useState<MCQQuestion[]>([]);
@@ -61,50 +61,21 @@ export default function QuizPage() {
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [mobilePaletteOpen, setMobilePaletteOpen] = useState<boolean>(false);
 
-  // Load deck logic
+  // Load user-scoped deck logic
   useEffect(() => {
     try {
-      const storedCustom = localStorage.getItem("medlearn_custom_decks");
-      let foundQuestions: MCQQuestion[] = [];
+      const userDecks = getUserDecks("MCQ");
+      const matched = userDecks.find((d) => d.id === params?.deckId);
 
-      // 1. Search in localStorage custom decks
-      if (storedCustom && params?.deckId) {
-        const customDecks = JSON.parse(storedCustom);
-        const matched = customDecks.find((d: any) => d.id === params.deckId);
-        if (matched && matched.questions && matched.questions.length > 0) {
-          setDeckTitle(matched.title);
-          foundQuestions = matched.questions;
-        }
-      }
-
-      // 2. Search in User Folder Tree
-      if (foundQuestions.length === 0 && params?.deckId) {
-        const folders = getUserFolders();
-        function searchNodes(nodes: any[]) {
-          for (const f of nodes) {
-            if (f.decks && f.decks.length > 0) {
-              const m = f.decks.find((d: any) => d.id === params.deckId);
-              if (m && m.questions && m.questions.length > 0) {
-                setDeckTitle(m.title);
-                foundQuestions = m.questions;
-                return;
-              }
-            }
-            if (f.children && f.children.length > 0) {
-              searchNodes(f.children);
-            }
-          }
-        }
-        searchNodes(folders);
-      }
-
-      // 3. Fallback demo deck
-      if (foundQuestions.length === 0 && (user?.isDemo || params?.deckId === "deck_cardio_01")) {
+      if (matched && matched.questions && matched.questions.length > 0) {
+        setDeckTitle(matched.title);
+        setQuestions(matched.questions);
+      } else if (user?.isDemo || params?.deckId === "deck_cardio_01") {
         setDeckTitle("Bộ Đề MCQ Mẫu: Suy Tim & Bệnh Mạch Vành (Demo)");
-        foundQuestions = MOCK_MCQ_QUESTIONS;
+        setQuestions(MOCK_MCQ_QUESTIONS);
+      } else {
+        setQuestions([]);
       }
-
-      setQuestions(foundQuestions);
     } catch (e) {
       setQuestions([]);
     } finally {

@@ -1,8 +1,14 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { UserProfile, BloomLevel, FolderShareRequest, FolderNode, LeaderboardEntry, BloomScoreMatrix } from "@/types";
-import { MOCK_USER, MOCK_FOLDERS } from "@/lib/mock-data";
+import { UserProfile, BloomLevel, FolderShareRequest, FolderNode, LeaderboardEntry, BloomScoreMatrix, Deck } from "@/types";
+import { MOCK_USER, MOCK_FOLDERS, MOCK_MCQ_QUESTIONS, MOCK_FLASHCARDS } from "@/lib/mock-data";
+
+export interface DeckWithFolder extends Deck {
+  folderName?: string;
+  folderId?: string;
+  folderColor?: string;
+}
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -33,6 +39,10 @@ interface AuthContextType {
   respondShareRequest: (requestId: string, accept: boolean) => void;
   getUserFolders: () => FolderNode[];
   saveUserFolders: (folders: FolderNode[]) => { success: boolean; error?: string };
+  // Scoped Decks Management (100% synchronized & isolated per user)
+  getUserDecks: (typeFilter?: "MCQ" | "FLASHCARD") => DeckWithFolder[];
+  saveUserDeck: (deck: Deck, targetFolderId: string, newFolderName?: string) => { success: boolean; error?: string };
+  deleteUserDeck: (deckId: string) => { success: boolean; error?: string };
 }
 
 // Initial clean Bloom taxonomy stats starting from 0
@@ -57,10 +67,10 @@ const defaultUsers: UserProfile[] = [
     role: "STUDENT",
     medicalSchool: "Đại học Y Dược TP.HCM",
     yearOfStudy: 4,
-    streakCount: 1, // Clean initial check-in streak
-    lastCheckInDate: "", // Not checked in today yet
-    totalQuestionsAnswered: 0, // Clean initial stats
-    totalCorrectAnswers: 0, // Clean initial stats
+    streakCount: 1,
+    lastCheckInDate: "",
+    totalQuestionsAnswered: 0,
+    totalCorrectAnswers: 0,
     overallAccuracy: 0,
     bloomTaxonomyStats: initialCleanBloomStats,
   },
@@ -131,7 +141,6 @@ const getStoredUsers = (): UserProfile[] => {
     const str = localStorage.getItem("medlearn_users");
     let list: UserProfile[] = str ? JSON.parse(str) : [];
 
-    // Ensure all default users exist in list without overwriting registered users
     for (const defU of defaultUsers) {
       if (
         !list.some(
@@ -197,7 +206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, message: "Vui lòng đăng nhập để điểm danh!" };
     }
 
-    const todayStr = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+    const todayStr = new Date().toISOString().split("T")[0];
 
     if (user.lastCheckInDate === todayStr) {
       return {
@@ -207,7 +216,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
-    // Check consecutive date
     let newStreak = user.streakCount || 0;
     if (user.lastCheckInDate) {
       const lastDate = new Date(user.lastCheckInDate);
@@ -302,7 +310,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const mapped: LeaderboardEntry[] = usersList.map((u) => {
         const streak = u.streakCount || 1;
         const correctAnswers = u.totalCorrectAnswers || 0;
-        // Formula: Rank Score = (Streak Days * 10) + (Correct Answers * 5)
         const rankScore = streak * 10 + correctAnswers * 5;
 
         return {
@@ -330,7 +337,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // 100% RELIABLE LOGIN METHOD
+  // LOGIN METHOD
   const login = (identity: string, pass: string): { success: boolean; error?: string } => {
     try {
       const usersList = getStoredUsers();
@@ -363,7 +370,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // 100% RELIABLE REGISTER METHOD WITH PERSISTENCE
+  // REGISTER METHOD
   const register = (data: {
     name: string;
     username: string;
@@ -420,6 +427,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       usersList.push(newUser);
       localStorage.setItem("medlearn_users", JSON.stringify(usersList));
       localStorage.setItem(`medlearn_folders_${newUserId}`, JSON.stringify([]));
+      localStorage.setItem(`medlearn_custom_decks_${newUserId}`, JSON.stringify([]));
 
       setUser(newUser);
       localStorage.setItem("medlearn_current_user", JSON.stringify(newUser));
@@ -434,7 +442,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("medlearn_current_user");
   };
 
-  // FORGOT PASSWORD VERIFICATION
+  // FORGOT PASSWORD
   const verifyAccountExists = (identity: string): { success: boolean; user?: UserProfile; error?: string } => {
     try {
       const cleanIdentity = identity.toLowerCase().trim();
@@ -459,7 +467,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // RESET PASSWORD METHOD
+  // RESET PASSWORD
   const resetPassword = (identity: string, newPass: string): { success: boolean; error?: string } => {
     try {
       const cleanIdentity = identity.toLowerCase().trim();
@@ -479,7 +487,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       usersList[targetIdx].password = cleanPass;
       localStorage.setItem("medlearn_users", JSON.stringify(usersList));
 
-      // Update current session if currently logged in with this account
       if (user && (user.email?.toLowerCase() === cleanIdentity || user.username?.toLowerCase() === cleanIdentity)) {
         const updated = { ...user, password: cleanPass };
         setUser(updated);
@@ -492,7 +499,203 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // FOLDER SHARING METHODS
+  // USER FOLDERS
+  const getUserFolders = (): FolderNode[] => {
+    if (typeof window === "undefined") return [];
+    try {
+      if (!user) return [];
+      const key = `medlearn_folders_${user.id}`;
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+      if (user.isDemo) {
+        return MOCK_FOLDERS;
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const saveUserFolders = (folders: FolderNode[]): { success: boolean; error?: string } => {
+    try {
+      if (!user) return { success: false, error: "Vui lòng đăng nhập!" };
+      const key = `medlearn_folders_${user.id}`;
+      localStorage.setItem(key, JSON.stringify(folders));
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: "Lỗi lưu thư mục!" };
+    }
+  };
+
+  // SCOPED DECKS PER USER (100% Data Isolation)
+  const getUserDecks = (typeFilter?: "MCQ" | "FLASHCARD"): DeckWithFolder[] => {
+    if (typeof window === "undefined") return [];
+    if (!user) return [];
+
+    const collected: DeckWithFolder[] = [];
+    const visitedIds = new Set<string>();
+
+    // 1. Traverse current user's folders
+    const folders = getUserFolders();
+    function traverse(nodes: FolderNode[], pathPrefix: string = "") {
+      for (const f of nodes) {
+        const currentPath = pathPrefix ? `${pathPrefix} > ${f.name}` : f.name;
+        if (f.decks && f.decks.length > 0) {
+          for (const d of f.decks) {
+            if (!visitedIds.has(d.id) && (!typeFilter || d.type === typeFilter)) {
+              visitedIds.add(d.id);
+              collected.push({
+                ...d,
+                folderName: currentPath,
+                folderId: f.id,
+                folderColor: f.color,
+              });
+            }
+          }
+        }
+        if (f.children && f.children.length > 0) {
+          traverse(f.children, currentPath);
+        }
+      }
+    }
+    traverse(folders);
+
+    // 2. Also check user-scoped custom decks
+    try {
+      const userCustomKey = `medlearn_custom_decks_${user.id}`;
+      const userCustomStr = localStorage.getItem(userCustomKey);
+      if (userCustomStr) {
+        const list: Deck[] = JSON.parse(userCustomStr);
+        for (const d of list) {
+          if (!visitedIds.has(d.id) && (!typeFilter || d.type === typeFilter)) {
+            visitedIds.add(d.id);
+            collected.push({
+              ...d,
+              folderName: "Thư Mục Gốc",
+            });
+          }
+        }
+      }
+    } catch (e) {}
+
+    // 3. If demo user and empty, fallback to demo decks
+    if (collected.length === 0 && user.isDemo) {
+      if (!typeFilter || typeFilter === "MCQ") {
+        collected.push({
+          id: "deck_cardio_01",
+          title: "Bộ Đề MCQ Mẫu: Suy Tim & Bệnh Mạch Vành (Demo)",
+          description: "Bộ câu hỏi mẫu phân loại theo 6 bậc Bloom về suy tim phân suất tống máu giảm và hội chứng vành cấp.",
+          type: "MCQ",
+          specialty: "Nội Tim Mạch",
+          itemCount: MOCK_MCQ_QUESTIONS.length,
+          questions: MOCK_MCQ_QUESTIONS,
+          updatedAt: new Date().toISOString().split("T")[0],
+          folderName: "Thư Mục Mẫu (Demo)",
+        });
+      }
+      if (!typeFilter || typeFilter === "FLASHCARD") {
+        collected.push({
+          id: "deck_pharm_01",
+          title: "Flashcard Cơ Chế Thuốc Tim Mạch & Cấp Cứu (Demo)",
+          description: "Ghi nhớ cơ chế tác dụng, chỉ định & chống chỉ định các nhóm thuốc tim mạch và hồi sức cấp cứu.",
+          type: "FLASHCARD",
+          specialty: "Dược Lý Lâm Sàng",
+          itemCount: MOCK_FLASHCARDS.length,
+          flashcards: MOCK_FLASHCARDS,
+          updatedAt: new Date().toISOString().split("T")[0],
+          folderName: "Thư Mục Mẫu (Demo)",
+        });
+      }
+    }
+
+    return collected;
+  };
+
+  // SAVE DECK PER USER & ATTACH TO TARGET FOLDER
+  const saveUserDeck = (deck: Deck, targetFolderId: string, newFolderName?: string): { success: boolean; error?: string } => {
+    if (!user) return { success: false, error: "Vui lòng đăng nhập!" };
+
+    // 1. Save to User's Scoped Custom Decks
+    try {
+      const userCustomKey = `medlearn_custom_decks_${user.id}`;
+      const stored = localStorage.getItem(userCustomKey);
+      const list: Deck[] = stored ? JSON.parse(stored) : [];
+      list.unshift(deck);
+      localStorage.setItem(userCustomKey, JSON.stringify(list));
+    } catch (e) {}
+
+    // 2. Attach to Destination Folder in User's Folder Tree
+    const currentFolders = getUserFolders();
+    if (targetFolderId === "CREATE_NEW") {
+      const newFolder: FolderNode = {
+        id: `folder_${Date.now()}`,
+        name: newFolderName || "Thư Mục Mới",
+        description: `Thư mục môn học ${deck.specialty}`,
+        color: deck.type === "MCQ" ? "#0284c7" : "#8b5cf6",
+        icon: "Folder",
+        decks: [deck],
+        children: [],
+        createdAt: new Date().toLocaleDateString("vi-VN"),
+      };
+      saveUserFolders([newFolder, ...currentFolders]);
+    } else {
+      function addDeckToTree(nodes: FolderNode[]): FolderNode[] {
+        return nodes.map((f) => {
+          if (f.id === targetFolderId) {
+            return {
+              ...f,
+              decks: [deck, ...(f.decks || [])],
+            };
+          }
+          if (f.children && f.children.length > 0) {
+            return {
+              ...f,
+              children: addDeckToTree(f.children),
+            };
+          }
+          return f;
+        });
+      }
+      const updated = addDeckToTree(currentFolders);
+      saveUserFolders(updated);
+    }
+
+    return { success: true };
+  };
+
+  // DELETE DECK PER USER (Synchronized across all views)
+  const deleteUserDeck = (deckId: string): { success: boolean; error?: string } => {
+    if (!user) return { success: false, error: "Vui lòng đăng nhập!" };
+
+    // 1. Remove from User's Folders
+    const currentFolders = getUserFolders();
+    const removeDeckFromHierarchy = (nodes: FolderNode[]): FolderNode[] => {
+      return nodes.map((f) => ({
+        ...f,
+        decks: (f.decks || []).filter((d) => d.id !== deckId),
+        children: f.children ? removeDeckFromHierarchy(f.children) : [],
+      }));
+    };
+    const updated = removeDeckFromHierarchy(currentFolders);
+    saveUserFolders(updated);
+
+    // 2. Remove from User's Scoped Custom Decks
+    try {
+      const userCustomKey = `medlearn_custom_decks_${user.id}`;
+      const stored = localStorage.getItem(userCustomKey);
+      if (stored) {
+        const list: Deck[] = JSON.parse(stored);
+        const filtered = list.filter((d) => d.id !== deckId);
+        localStorage.setItem(userCustomKey, JSON.stringify(filtered));
+      }
+    } catch (e) {}
+
+    return { success: true };
+  };
+
+  // SHARING
   const sendShareRequest = (
     folder: FolderNode,
     target: string
@@ -587,35 +790,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {}
   };
 
-  const getUserFolders = (): FolderNode[] => {
-    if (typeof window === "undefined") return MOCK_FOLDERS;
-    try {
-      if (!user) return [];
-      const key = `medlearn_folders_${user.id}`;
-      const stored = localStorage.getItem(key);
-      if (stored) {
-        return JSON.parse(stored);
-      }
-      if (user.isDemo) {
-        return MOCK_FOLDERS;
-      }
-      return [];
-    } catch (e) {
-      return [];
-    }
-  };
-
-  const saveUserFolders = (folders: FolderNode[]): { success: boolean; error?: string } => {
-    try {
-      if (!user) return { success: false, error: "Vui lòng đăng nhập!" };
-      const key = `medlearn_folders_${user.id}`;
-      localStorage.setItem(key, JSON.stringify(folders));
-      return { success: true };
-    } catch (e) {
-      return { success: false, error: "Lỗi lưu thư mục!" };
-    }
-  };
-
   return (
     <AuthContext.Provider
       value={{
@@ -635,6 +809,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         respondShareRequest,
         getUserFolders,
         saveUserFolders,
+        getUserDecks,
+        saveUserDeck,
+        deleteUserDeck,
       }}
     >
       {children}

@@ -2,11 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, DeckWithFolder } from "@/lib/auth-context";
 import { AuthGuard } from "@/components/auth-guard";
-import { Deck, FolderNode } from "@/types";
 import { MEDICAL_SPECIALTIES } from "@/constants/bloom";
-import { MOCK_FLASHCARDS } from "@/lib/mock-data";
 import {
   Layers,
   Search,
@@ -28,14 +26,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface DeckWithFolder extends Deck {
-  folderName?: string;
-  folderId?: string;
-  folderColor?: string;
-}
-
 export default function FlashcardsIndexPage() {
-  const { user, getUserFolders, saveUserFolders } = useAuth();
+  const { user, getUserDecks, deleteUserDeck } = useAuth();
 
   const [decks, setDecks] = useState<DeckWithFolder[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -46,67 +38,12 @@ export default function FlashcardsIndexPage() {
 
   const isDemoUser = user?.isDemo ?? false;
 
-  // Extract all Flashcard decks from folders and custom decks
+  // Load all user-scoped Flashcard decks
   const loadAllFlashcardDecks = () => {
+    setIsLoading(true);
     try {
-      const userFolders = getUserFolders();
-      const collected: DeckWithFolder[] = [];
-      const visitedIds = new Set<string>();
-
-      // 1. Recursive helper to extract from folder hierarchy
-      function traverse(nodes: FolderNode[]) {
-        for (const folder of nodes) {
-          if (folder.decks && folder.decks.length > 0) {
-            for (const d of folder.decks) {
-              if (d.type === "FLASHCARD" && !visitedIds.has(d.id)) {
-                visitedIds.add(d.id);
-                collected.push({
-                  ...d,
-                  folderName: folder.name,
-                  folderId: folder.id,
-                  folderColor: folder.color,
-                });
-              }
-            }
-          }
-          if (folder.children && folder.children.length > 0) {
-            traverse(folder.children);
-          }
-        }
-      }
-      traverse(userFolders);
-
-      // 2. Also check medlearn_custom_decks in localStorage
-      const customDecksStr = localStorage.getItem("medlearn_custom_decks");
-      if (customDecksStr) {
-        const customDecks = JSON.parse(customDecksStr);
-        for (const cd of customDecks) {
-          if (cd.type === "FLASHCARD" && !visitedIds.has(cd.id)) {
-            visitedIds.add(cd.id);
-            collected.push({
-              ...cd,
-              folderName: "Tự Do (Chưa gán thư mục)",
-            });
-          }
-        }
-      }
-
-      // 3. If demo user and no decks found, add default demo flashcard deck
-      if (collected.length === 0 && user?.isDemo) {
-        collected.push({
-          id: "deck_pharm_01",
-          title: "Flashcard Cơ Chế Thuốc Tim Mạch & Cấp Cứu (Demo)",
-          description: "Ghi nhớ cơ chế tác dụng, chỉ định & chống chỉ định các nhóm thuốc tim mạch và hồi sức cấp cứu.",
-          type: "FLASHCARD",
-          specialty: "Dược Lý Lâm Sàng",
-          itemCount: MOCK_FLASHCARDS.length,
-          flashcards: MOCK_FLASHCARDS,
-          updatedAt: new Date().toISOString().split("T")[0],
-          folderName: "Thư Mục Mẫu (Demo)",
-        });
-      }
-
-      setDecks(collected);
+      const list = getUserDecks("FLASHCARD");
+      setDecks(list);
     } catch (e) {
       setDecks([]);
     } finally {
@@ -118,7 +55,7 @@ export default function FlashcardsIndexPage() {
     loadAllFlashcardDecks();
   }, [user]);
 
-  // Handle Delete Deck
+  // Handle Delete Deck with clean synchronization
   const confirmDeleteDeck = () => {
     if (!deckToDelete) return;
     if (isDemoUser) {
@@ -127,30 +64,7 @@ export default function FlashcardsIndexPage() {
       return;
     }
 
-    const deckId = deckToDelete.id;
-
-    // 1. Remove from folders in AuthContext
-    const currentFolders = getUserFolders();
-    const removeDeckFromHierarchy = (list: FolderNode[]): FolderNode[] => {
-      return list.map((f) => ({
-        ...f,
-        decks: (f.decks || []).filter((d) => d.id !== deckId),
-        children: f.children ? removeDeckFromHierarchy(f.children) : [],
-      }));
-    };
-    const updatedFolders = removeDeckFromHierarchy(currentFolders);
-    saveUserFolders(updatedFolders);
-
-    // 2. Remove from custom decks list in localStorage
-    try {
-      const stored = localStorage.getItem("medlearn_custom_decks");
-      if (stored) {
-        const list = JSON.parse(stored);
-        const filtered = list.filter((d: any) => d.id !== deckId);
-        localStorage.setItem("medlearn_custom_decks", JSON.stringify(filtered));
-      }
-    } catch (e) {}
-
+    deleteUserDeck(deckToDelete.id);
     setDeckToDelete(null);
     loadAllFlashcardDecks();
   };
@@ -187,7 +101,7 @@ export default function FlashcardsIndexPage() {
               Danh Sách Tất Cả Bộ Thẻ Flashcard
             </h1>
             <p className="text-xs sm:text-sm text-muted-foreground">
-              Tổng hợp toàn bộ các bộ thẻ định nghĩa, triệu chứng và cơ chế bệnh học trong Cây Thư Mục của bạn
+              Tổng hợp toàn bộ các bộ thẻ định nghĩa, triệu chứng và cơ chế bệnh học trong Cây Thư Mục riêng của bạn
             </p>
           </div>
 
@@ -317,16 +231,14 @@ export default function FlashcardsIndexPage() {
               >
                 <div className="space-y-3">
                   {/* Top Tags */}
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
                     <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 uppercase tracking-wider">
                       {deck.specialty}
                     </span>
 
-                    {deck.folderName && (
-                      <span className="text-[11px] font-semibold text-muted-foreground bg-muted/60 px-2.5 py-0.5 rounded-lg flex items-center gap-1 line-clamp-1 max-w-[160px]">
-                        📁 {deck.folderName}
-                      </span>
-                    )}
+                    <span className="text-[11px] font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-900/60 px-2.5 py-0.5 rounded-lg flex items-center gap-1 line-clamp-1 max-w-[200px]">
+                      📁 {deck.folderName || "Thư Mục Gốc"}
+                    </span>
                   </div>
 
                   {/* Title & Description */}
@@ -339,6 +251,12 @@ export default function FlashcardsIndexPage() {
                         {deck.description}
                       </p>
                     )}
+                  </div>
+
+                  {/* Prominent Folder Origin Badge */}
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-muted/40 border border-border/80 text-[11px] text-muted-foreground font-medium">
+                    <FolderTree className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                    <span className="truncate">Nguồn Cây Thư Mục: <strong className="text-foreground">{deck.folderName || "Thư Mục Gốc"}</strong></span>
                   </div>
                 </div>
 
@@ -387,7 +305,7 @@ export default function FlashcardsIndexPage() {
                 </div>
                 <div>
                   <h3 className="text-base font-black text-foreground">Xác Nhận Xóa Bộ Thẻ Flashcard</h3>
-                  <p className="text-xs text-muted-foreground">Thao tác này sẽ xóa vĩnh viễn bộ thẻ</p>
+                  <p className="text-xs text-muted-foreground">Xóa đồng bộ khỏi Cây Thư Mục và Trung Tâm Flashcard</p>
                 </div>
               </div>
 
@@ -396,13 +314,11 @@ export default function FlashcardsIndexPage() {
                 <div className="text-muted-foreground">
                   Chuyên khoa: <strong>{deckToDelete.specialty}</strong> • Số lượng: <strong>{deckToDelete.itemCount} thẻ</strong>
                 </div>
-                {deckToDelete.folderName && (
-                  <div className="text-[11px] text-purple-600 font-semibold">📁 Nằm trong: {deckToDelete.folderName}</div>
-                )}
+                <div className="text-[11px] text-purple-600 font-semibold">📁 Nguồn thư mục: {deckToDelete.folderName || "Thư Mục Gốc"}</div>
               </div>
 
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Bạn có chắc chắn muốn xóa bộ thẻ này khỏi Cây Thư Mục không? Toàn bộ thẻ ghi nhớ trong bộ này sẽ bị gỡ bỏ.
+                Bạn có chắc chắn muốn xóa bộ thẻ này khỏi Cây Thư Mục không? Toàn bộ thẻ ghi nhớ trong bộ này sẽ bị gỡ bỏ đồng thời.
               </p>
 
               <div className="flex items-center justify-end gap-2.5 pt-2">
@@ -418,7 +334,7 @@ export default function FlashcardsIndexPage() {
                   onClick={confirmDeleteDeck}
                   className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition-all hover:scale-105"
                 >
-                  Xóa Bộ Thẻ
+                  Xác Nhận Xóa
                 </button>
               </div>
             </div>
@@ -462,4 +378,3 @@ export default function FlashcardsIndexPage() {
     </AuthGuard>
   );
 }
-
