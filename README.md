@@ -189,3 +189,14 @@ Mở trình duyệt và truy cập: **[http://localhost:3000](http://localhost:3
 - **Performance**: Zero Cumulative Layout Shift (CLS), tải trước Server Components, lazy loading các modal nặng.
 - **Maintainability**: Phân tách rõ ràng giữa Presentation Components và Business Logic, kiểu dữ liệu chặt chẽ không sử dụng `any`.
 
+---
+
+## 👨‍⚕️ Thông Tin Tác Giả & Nhà Sáng Tạo (Author & Creator)
+
+- **Họ và Tên**: **Lê Anh Tuấn**
+- **ZALO**: [`0813194249`](https://zalo.me/0813194249)
+- **FACEBOOK**: [`https://www.facebook.com/le.tuan.934451`](https://www.facebook.com/le.tuan.934451)
+- **Email**: `leanhtuan812006@gmail.com`
+- **Dự Án**: MediMind - Nền tảng Học tập & Đánh giá Năng lực Y Khoa theo Thang đo Tư duy Bloom.
+
+

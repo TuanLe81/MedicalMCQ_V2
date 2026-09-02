@@ -363,7 +363,7 @@ export default function HomePage() {
 
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
-              href={isAuthenticated ? "/quiz/deck_cardio_01" : "/login"}
+              href={isAuthenticated ? "/quiz" : "/login"}
               className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-white text-sky-700 hover:bg-sky-50 font-extrabold text-sm shadow-lg transition-all hover:scale-105"
             >
               {isAuthenticated ? "Bắt Đầu Luyện Đề Ngay" : "Đăng Nhập Để Bắt Đầu"}
@@ -376,12 +376,34 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* Compact Creator Attribution Badge */}
-          <div className="pt-6 border-t border-white/20 inline-flex items-center gap-2 text-xs text-sky-100">
-            <span>Dự án được xây dựng &amp; phát triển bởi</span>
-            <span className="font-extrabold text-white bg-white/10 px-3 py-1 rounded-full border border-white/20">
-              Nhà sáng tạo: Lê Anh Tuấn
-            </span>
+          {/* Compact Creator Attribution Badge & Contact Links */}
+          <div className="pt-6 border-t border-white/20 flex flex-col sm:flex-row items-center justify-center gap-3 text-xs text-sky-100 flex-wrap">
+            <div className="inline-flex items-center gap-2">
+              <span>Dự án được xây dựng &amp; phát triển bởi</span>
+              <span className="font-extrabold text-white bg-white/20 px-3 py-1 rounded-full border border-white/30">
+                Nhà sáng tạo: Lê Anh Tuấn
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <a
+                href="https://zalo.me/0813194249"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600/80 hover:bg-blue-600 text-white font-bold shadow-xs transition-all hover:scale-105"
+              >
+                <span>💬 Zalo: 0813194249</span>
+              </a>
+
+              <a
+                href="https://www.facebook.com/le.tuan.934451"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-900/60 hover:bg-indigo-900 text-white font-bold shadow-xs transition-all hover:scale-105"
+              >
+                <span>🌐 Facebook: Lê Tuấn</span>
+              </a>
+            </div>
           </div>
         </div>
       </section>
