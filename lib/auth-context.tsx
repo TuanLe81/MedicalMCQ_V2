@@ -286,21 +286,30 @@ const syncShareRequestsFromCloud = async (
 ): Promise<FolderShareRequest[]> => {
   if (typeof window === "undefined" || !currentUser) return [];
   try {
-    const targetIdentity = currentUser.username || currentUser.email;
+    const params = new URLSearchParams();
+    if (currentUser.email) params.set("targetEmail", currentUser.email.toLowerCase().trim());
+    if (currentUser.username) params.set("targetUsername", currentUser.username.toLowerCase().trim());
+    if (currentUser.id) params.set("targetId", currentUser.id);
+    // Legacy support
+    const targetIdentity = currentUser.email || currentUser.username;
+    if (targetIdentity) params.set("targetIdentity", targetIdentity.toLowerCase().trim());
+
     const res = await fetch(
-      `/api/cloud-sync/share-requests?targetIdentity=${encodeURIComponent(
-        targetIdentity
-      )}&ownerId=${encodeURIComponent(currentUser.id)}`,
+      `/api/cloud-sync/share-requests?${params.toString()}`,
       { cache: "no-store" }
     );
     if (!res.ok) return [];
     const data = await res.json();
     if (data.success && Array.isArray(data.shareRequests)) {
+      // Only keep PENDING or recent requests for the inbox display
+      const inboxRequests = data.shareRequests.filter(
+        (r: FolderShareRequest) => r.status === "PENDING" || r.status === "ACCEPTED" || r.status === "REJECTED"
+      );
       localStorage.setItem(
         "medlearn_share_requests",
-        JSON.stringify(data.shareRequests)
+        JSON.stringify(inboxRequests)
       );
-      return data.shareRequests;
+      return inboxRequests;
     }
   } catch (e) {}
   return [];
@@ -1160,6 +1169,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // If not in local, check cloud database
       if (!targetUserObj) {
+        try {
+          const res = await fetch(
+            `/api/cloud-sync/users?identity=${encodeURIComponent(cleanTarget)}`,
+            { cache: "no-store" }
+          );
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && data.users) {
+              const cloudUsers: any[] = data.users;
+              targetUserObj = cloudUsers.find(
+                (u: any) =>
+                  u.email?.toLowerCase().trim() === cleanTarget ||
+                  u.username?.toLowerCase().trim() === cleanTarget
+              );
+              if (targetUserObj) {
+                // Merge into local
+                const merged = [...usersList, targetUserObj];
+                try { localStorage.setItem("medlearn_users", JSON.stringify(merged)); } catch (e) {}
+              }
+            }
+          }
+        } catch (fetchErr) {}
+      }
+
+      // Fallback: full sync
+      if (!targetUserObj) {
         usersList = await syncUsersWithCloud();
         targetUserObj = usersList.find(
           (u) =>
@@ -1171,7 +1206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!targetUserObj) {
         return {
           success: false,
-          error: `Không tìm thấy người dùng @${target} trong hệ thống! Vui lòng kiểm tra lại email hoặc tên đăng nhập.`,
+          error: `Không tìm thấy người dùng "${target}" trong hệ thống! Vui lòng kiểm tra lại email hoặc tên đăng nhập.`,
         };
       }
 
@@ -1187,7 +1222,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const deckItem = isDeck ? (item as Deck) : undefined;
 
       const newRequest: FolderShareRequest = {
-        id: `req_${Date.now()}`,
+        id: `req_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         folderId: folderItem?.id || "",
         folderName: folderItem?.name || deckItem?.title || "Tài Liệu Y Khoa",
         folderData: folderItem,
@@ -1198,34 +1233,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ownerName: user.name,
         ownerEmail: user.email,
         ownerSchool: user.medicalSchool,
-        recipientIdentity: targetUserObj.username || targetUserObj.email,
-        targetUsernameOrEmail: targetUserObj.username || targetUserObj.email,
+        // Store BOTH email and username of recipient for matching
+        recipientIdentity: targetUserObj.email?.toLowerCase().trim() || targetUserObj.username?.toLowerCase().trim(),
+        recipientEmail: targetUserObj.email?.toLowerCase().trim(),
+        recipientUsername: targetUserObj.username?.toLowerCase().trim(),
+        targetUsernameOrEmail: targetUserObj.email?.toLowerCase().trim() || targetUserObj.username?.toLowerCase().trim(),
+        recipientId: targetUserObj.id,
         status: "PENDING",
         createdAt: new Date().toLocaleDateString("vi-VN"),
       };
 
-      const existingSharesStr = localStorage.getItem("medlearn_share_requests");
-      const list: FolderShareRequest[] = existingSharesStr
-        ? JSON.parse(existingSharesStr)
-        : [];
-      list.unshift(newRequest);
-      localStorage.setItem("medlearn_share_requests", JSON.stringify(list));
-      setShareRequests(list);
-
-      // Push to Cloud Gist Database
+      // Push ONLY to Cloud Gist — do NOT add to sender's local shareRequests state
+      // so that the invitation only appears in the RECIPIENT's inbox
       try {
-        await fetch("/api/cloud-sync/share-requests", {
+        const res = await fetch("/api/cloud-sync/share-requests", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ shareRequest: newRequest }),
         });
-      } catch (err) {}
+        if (!res.ok) {
+          return { success: false, error: "Không thể gửi lời mời lên đám mây, vui lòng thử lại!" };
+        }
+      } catch (err) {
+        return { success: false, error: "Lỗi kết nối khi gửi lời mời chia sẻ!" };
+      }
 
       return { success: true };
     } catch (e) {
       return { success: false, error: "Lỗi gửi yêu cầu chia sẻ!" };
     }
   };
+
 
   const respondShareRequest = async (
     requestId: string,

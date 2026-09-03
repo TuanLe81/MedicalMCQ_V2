@@ -48,17 +48,38 @@ export const ShareItemModal: React.FC<ShareItemModalProps> = ({
       setFeedback(null);
       setIsSubmitting(false);
 
-      // Load registered users for quick select
-      try {
-        const storedStr = localStorage.getItem("medlearn_users");
-        if (storedStr) {
-          const list = JSON.parse(storedStr);
-          const filtered = list
-            .filter((u: any) => u.id !== user?.id && (u.email || u.username))
-            .slice(0, 4);
-          setSuggestedUsers(filtered);
-        }
-      } catch (e) {}
+      // Load registered users: cloud first, fallback to localStorage
+      const loadUsers = async () => {
+        try {
+          // Try cloud first
+          const res = await fetch("/api/cloud-sync/users", { cache: "no-store" });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && Array.isArray(data.users)) {
+              const filtered = data.users
+                .filter((u: any) => u.id !== user?.id && (u.email || u.username))
+                .slice(0, 5);
+              setSuggestedUsers(filtered);
+              // Also merge into localStorage for offline use
+              try { localStorage.setItem("medlearn_users", JSON.stringify(data.users)); } catch (e) {}
+              return;
+            }
+          }
+        } catch (e) {}
+        // Fallback to localStorage
+        try {
+          const storedStr = localStorage.getItem("medlearn_users");
+          if (storedStr) {
+            const list = JSON.parse(storedStr);
+            const filtered = list
+              .filter((u: any) => u.id !== user?.id && (u.email || u.username))
+              .slice(0, 5);
+            setSuggestedUsers(filtered);
+          }
+        } catch (e) {}
+      };
+
+      loadUsers();
     }
   }, [isOpen, user]);
 
@@ -192,19 +213,19 @@ export const ShareItemModal: React.FC<ShareItemModalProps> = ({
           {suggestedUsers.length > 0 && (
             <div className="space-y-1.5">
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                Gợi ý nhanh thành viên:
+                Gợi ý nhanh thành viên từ hệ thống:
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {suggestedUsers.map((su, idx) => (
                   <button
                     key={idx}
                     type="button"
-                    onClick={() => setTargetUser(su.username || su.email)}
+                    onClick={() => setTargetUser(su.email || su.username || "")}
                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border bg-background hover:bg-sky-50 dark:hover:bg-sky-950/40 text-[11px] font-medium text-foreground hover:text-sky-600 transition-colors"
                   >
                     <User className="h-3 w-3 text-muted-foreground" />
                     <span>{su.name}</span>
-                    <span className="text-[9px] text-muted-foreground">(@{su.username || su.email})</span>
+                    <span className="text-[9px] text-muted-foreground truncate max-w-[120px]">{su.email || su.username}</span>
                   </button>
                 ))}
               </div>

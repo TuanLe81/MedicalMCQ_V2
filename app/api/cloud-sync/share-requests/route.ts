@@ -3,16 +3,18 @@ import { getGistData, updateGistFiles } from "@/lib/cloud-sync";
 
 export const dynamic = "force-dynamic";
 
-// GET: Fetch share requests relevant to a user (as recipient or owner)
+// GET: Fetch share requests relevant to a user (as recipient only - for inbox)
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const targetIdentity = searchParams.get("targetIdentity")?.toLowerCase().trim();
-    const ownerId = searchParams.get("ownerId");
+    const targetEmail = searchParams.get("targetEmail")?.toLowerCase().trim();
+    const targetUsername = searchParams.get("targetUsername")?.toLowerCase().trim();
+    const targetId = searchParams.get("targetId");
 
     const { shareRequests } = await getGistData();
 
-    if (!targetIdentity && !ownerId) {
+    if (!targetIdentity && !targetEmail && !targetId && !targetUsername) {
       return NextResponse.json({
         success: true,
         shareRequests,
@@ -20,12 +22,28 @@ export async function GET(req: Request) {
     }
 
     const filtered = shareRequests.filter((r) => {
-      const recipientMatch =
-        targetIdentity &&
-        (r.recipientIdentity?.toLowerCase().trim() === targetIdentity ||
-          r.targetUsernameOrEmail?.toLowerCase().trim() === targetIdentity);
-      const ownerMatch = ownerId && r.ownerId === ownerId;
-      return recipientMatch || ownerMatch;
+      // Match by recipientId first (most reliable)
+      if (targetId && r.recipientId && r.recipientId === targetId) return true;
+      // Match by email
+      if (targetEmail && (
+        r.recipientEmail?.toLowerCase().trim() === targetEmail ||
+        r.recipientIdentity?.toLowerCase().trim() === targetEmail ||
+        r.targetUsernameOrEmail?.toLowerCase().trim() === targetEmail
+      )) return true;
+      // Match by username
+      if (targetUsername && (
+        r.recipientUsername?.toLowerCase().trim() === targetUsername ||
+        r.recipientIdentity?.toLowerCase().trim() === targetUsername ||
+        r.targetUsernameOrEmail?.toLowerCase().trim() === targetUsername
+      )) return true;
+      // Fallback: match by general identity string
+      if (targetIdentity && (
+        r.recipientIdentity?.toLowerCase().trim() === targetIdentity ||
+        r.recipientEmail?.toLowerCase().trim() === targetIdentity ||
+        r.recipientUsername?.toLowerCase().trim() === targetIdentity ||
+        r.targetUsernameOrEmail?.toLowerCase().trim() === targetIdentity
+      )) return true;
+      return false;
     });
 
     return NextResponse.json({

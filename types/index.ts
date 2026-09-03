@@ -88,8 +88,12 @@ export interface FolderShareRequest {
   ownerName: string;
   ownerEmail?: string;
   ownerSchool?: string;
-  recipientIdentity?: string;
-  targetUsernameOrEmail?: string;
+  // Recipient identifiers - both email AND username stored for reliable matching across devices
+  recipientIdentity?: string;        // primary: email (lowercase)
+  recipientEmail?: string;           // email of recipient (lowercase)
+  recipientUsername?: string;        // username of recipient (lowercase)
+  recipientId?: string;              // user id of recipient (most reliable)
+  targetUsernameOrEmail?: string;    // legacy field kept for backward compat
   status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
   createdAt: string;
   folderData?: FolderNode;
