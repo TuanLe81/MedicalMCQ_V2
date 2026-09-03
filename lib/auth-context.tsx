@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { UserProfile, BloomLevel, FolderShareRequest, FolderNode, LeaderboardEntry, BloomScoreMatrix, Deck } from "@/types";
+import { UserProfile, BloomLevel, FolderShareRequest, FolderNode, LeaderboardEntry, BloomScoreMatrix, Deck, MCQQuestion, FlashcardItem } from "@/types";
 import { MOCK_USER, MOCK_FOLDERS, MOCK_MCQ_QUESTIONS, MOCK_FLASHCARDS } from "@/lib/mock-data";
 
 export interface DeckWithFolder extends Deck {
@@ -439,10 +439,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           id: u.id,
           name: u.name,
           username: u.username,
+          email: u.email,
           role: u.role || "STUDENT",
           medicalSchool: u.medicalSchool || "Đại học Y Dược TP.HCM",
+          yearOfStudy: u.yearOfStudy || 4,
+          streakCount: streak,
           streakDays: streak,
+          totalCorrectAnswers: correctAnswers,
           correctAnswers: correctAnswers,
+          totalQuestionsAnswered: u.totalQuestionsAnswered || 0,
+          overallAccuracy: u.overallAccuracy || 0,
           rankScore: rankScore,
           isCurrentUser: user?.id === u.id || user?.email?.toLowerCase() === u.email?.toLowerCase(),
           rank: 1,

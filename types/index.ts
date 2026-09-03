@@ -60,6 +60,7 @@ export interface Deck {
   flashcards?: FlashcardItem[];
   itemCount: number;
   updatedAt: string;
+  createdAt?: string;
   isSystemMock?: boolean;
 }
 
@@ -85,8 +86,10 @@ export interface FolderShareRequest {
   folderName: string;
   ownerId: string;
   ownerName: string;
+  ownerEmail?: string;
   ownerSchool?: string;
-  targetUsernameOrEmail: string;
+  recipientIdentity?: string;
+  targetUsernameOrEmail?: string;
   status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
   createdAt: string;
   folderData: FolderNode;
@@ -123,7 +126,9 @@ export interface LeaderboardEntry {
   yearOfStudy: number;
   role: string;
   streakCount: number;
+  streakDays?: number;
   totalCorrectAnswers: number;
+  correctAnswers?: number;
   totalQuestionsAnswered: number;
   overallAccuracy: number;
   rankScore: number; // Formula: (streakCount * 10) + (totalCorrectAnswers * 5)

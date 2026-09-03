@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { MOCK_MCQ_QUESTIONS } from "@/lib/mock-data";
-import { MCQQuestion, QuizResult } from "@/types";
+import { Deck, MCQQuestion, QuizResult } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 import { AuthGuard } from "@/components/auth-guard";
 import { QuestionCard } from "@/components/mcq/question-card";

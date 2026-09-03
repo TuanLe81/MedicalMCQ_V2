@@ -114,9 +114,11 @@ export default function CreateStudioPage() {
     title: string;
     type: "MCQ" | "FLASHCARD";
     itemCount: number;
+    addedCount?: number;
     specialty: string;
     folderName: string;
     deckId: string;
+    isAppended?: boolean;
   } | null>(null);
 
   // AI GENERATOR STATES
