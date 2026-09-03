@@ -1298,7 +1298,7 @@ Bloom: (Chọn 1 trong các mức: REMEMBERING, UNDERSTANDING, APPLYING, ANALYZI
 
                   {batchType === "MCQ" ? (
                     <div className="p-4 rounded-2xl bg-background border border-border font-mono text-[11px] sm:text-xs text-foreground space-y-1.5 overflow-x-auto leading-relaxed">
-                      <div className="text-muted-foreground">// Mẫu cú pháp chuẩn cho mỗi câu MCQ (phân cách các câu bằng ---)</div>
+                      <div className="text-muted-foreground">{"// Mẫu cú pháp chuẩn cho mỗi câu MCQ (phân cách các câu bằng ---)"}</div>
                       <div className="text-sky-600 font-bold">[Tình huống] Bệnh nhân nam 62 tuổi vào viện vì khó thở... (tùy chọn)</div>
                       <div className="text-foreground font-bold">Câu hỏi: Dấu hiệu nào có độ đặc hiệu cao nhất cho chẩn đoán suy tim?</div>
                       <div className="text-emerald-700 dark:text-emerald-400">A. Tiếng T3 Gallop ở mỏm tim</div>
@@ -1313,7 +1313,7 @@ Bloom: (Chọn 1 trong các mức: REMEMBERING, UNDERSTANDING, APPLYING, ANALYZI
                   ) : (
                     <div className="space-y-3">
                       <div className="p-4 rounded-2xl bg-background border border-border font-mono text-[11px] sm:text-xs text-foreground space-y-1.5 overflow-x-auto leading-relaxed">
-                        <div className="text-muted-foreground">// Cách 1: Định dạng theo khối thẻ (Khuyên dùng - Dễ đọc nhất cho cả người và AI)</div>
+                        <div className="text-muted-foreground">{"// Cách 1: Định dạng theo khối thẻ (Khuyên dùng - Dễ đọc nhất cho cả người và AI)"}</div>
                         <div className="text-purple-600 font-bold">Mặt trước: Tam chứng Charcot trong nhiễm trùng đường mật cấp</div>
                         <div className="text-emerald-700 dark:text-emerald-400 font-bold">Mặt sau: 1. Đau hạ sườn phải - 2. Sốt rét run - 3. Vàng da vàng mắt</div>
                         <div className="text-amber-600 dark:text-amber-400">Gợi ý: Đau - Sốt - Vàng (tùy chọn)</div>
@@ -1322,7 +1322,7 @@ Bloom: (Chọn 1 trong các mức: REMEMBERING, UNDERSTANDING, APPLYING, ANALYZI
                       </div>
 
                       <div className="p-3.5 rounded-2xl bg-muted/30 border border-border font-mono text-[11px] text-foreground space-y-1 overflow-x-auto">
-                        <div className="text-muted-foreground">// Cách 2: Định dạng 1 dòng dùng dấu gạch đứng ( | )</div>
+                        <div className="text-muted-foreground">{"// Cách 2: Định dạng 1 dòng dùng dấu gạch đứng ( | )"}</div>
                         <div>Mặt trước | Mặt sau | Gợi ý (tùy chọn) | Bloom (tùy chọn)</div>
                         <div className="text-muted-foreground italic">VD: Tam chứng Charcot | 1. Đau HSP 2. Sốt 3. Vàng da | Đau-Sốt-Vàng | REMEMBERING</div>
                       </div>
