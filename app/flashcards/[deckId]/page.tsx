@@ -8,7 +8,7 @@ import { FlashcardItem } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 import { FlashcardViewer } from "@/components/flashcard/flashcard-viewer";
 import { AuthGuard } from "@/components/auth-guard";
-import { ArrowLeft, Stethoscope, Sparkles, Layers, FolderTree, PlusCircle } from "lucide-react";
+import { ArrowLeft, Stethoscope, Sparkles, Layers, FolderTree, PlusCircle, Plus } from "lucide-react";
 
 export default function FlashcardsPage() {
   const params = useParams();
@@ -80,7 +80,7 @@ export default function FlashcardsPage() {
         ) : (
           <>
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-border/60 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
               <div className="flex items-center gap-3">
                 <Link
                   href="/flashcards"
@@ -101,6 +101,16 @@ export default function FlashcardsPage() {
                   </h1>
                 </div>
               </div>
+
+              {/* Action: Append More Cards */}
+              <Link
+                href={`/create?appendDeckId=${params?.deckId}&type=FLASHCARD`}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-bold text-xs transition-all shadow-2xs self-start sm:self-center"
+                title="Nạp thêm thẻ vào bộ flashcard này"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Nạp Thêm Thẻ</span>
+              </Link>
             </div>
 
             {/* 3D Flashcard Player */}

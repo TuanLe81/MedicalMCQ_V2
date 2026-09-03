@@ -8,6 +8,7 @@ import { MEDICAL_SPECIALTIES } from "@/constants/bloom";
 import {
   Layers,
   Search,
+  Plus,
   PlusCircle,
   FolderTree,
   FileQuestion,
@@ -278,6 +279,14 @@ export default function QuizIndexPage() {
                       <Play className="h-3.5 w-3.5 fill-white" />
                       <span>Luyện Thi Cuộn</span>
                       <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+
+                    <Link
+                      href={`/create?appendDeckId=${deck.id}&type=MCQ`}
+                      className="p-2.5 rounded-2xl border border-border hover:bg-sky-50 dark:hover:bg-sky-950/40 text-muted-foreground hover:text-sky-600 transition-colors"
+                      title="Nạp thêm câu hỏi vào bộ đề này"
+                    >
+                      <Plus className="h-4 w-4" />
                     </Link>
 
                     <button

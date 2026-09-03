@@ -12,6 +12,7 @@ import { QuizResultModal } from "@/components/mcq/quiz-result-modal";
 import { calculateBloomMatrix, formatTime } from "@/lib/utils";
 import {
   ArrowLeft,
+  Plus,
   Send,
   RotateCcw,
   Sparkles,
@@ -299,35 +300,47 @@ export default function QuizPage() {
                 </div>
               </div>
 
-              {/* Mode Switcher */}
-              {!hasSubmitted && !reviewMode && (
-                <div className="flex items-center gap-1.5 p-1 rounded-xl bg-muted/60 border border-border text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setIsExamMode(false)}
-                    className={cn(
-                      "px-3 py-1.5 rounded-lg font-bold transition-all",
-                      !isExamMode
-                        ? "bg-sky-600 text-white shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Giải Thích Tức Thì
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsExamMode(true)}
-                    className={cn(
-                      "px-3 py-1.5 rounded-lg font-bold transition-all",
-                      isExamMode
-                        ? "bg-sky-600 text-white shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Chế Độ Thi Thử
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Append Questions Button */}
+                <Link
+                  href={`/create?appendDeckId=${params?.deckId}&type=MCQ`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 font-bold text-xs transition-all shadow-2xs"
+                  title="Nạp thêm câu hỏi vào bộ đề này"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Nạp Thêm Câu</span>
+                </Link>
+
+                {/* Mode Switcher */}
+                {!hasSubmitted && !reviewMode && (
+                  <div className="flex items-center gap-1.5 p-1 rounded-xl bg-muted/60 border border-border text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setIsExamMode(false)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg font-bold transition-all",
+                        !isExamMode
+                          ? "bg-sky-600 text-white shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Giải Thích Tức Thì
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsExamMode(true)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg font-bold transition-all",
+                        isExamMode
+                          ? "bg-sky-600 text-white shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Chế Độ Thi Thử
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* PAUSE BANNER */}

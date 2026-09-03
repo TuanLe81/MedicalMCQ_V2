@@ -8,6 +8,7 @@ import { MEDICAL_SPECIALTIES } from "@/constants/bloom";
 import {
   Layers,
   Search,
+  Plus,
   PlusCircle,
   FolderTree,
   Play,
@@ -278,6 +279,14 @@ export default function FlashcardsIndexPage() {
                       <Play className="h-3.5 w-3.5 fill-white" />
                       <span>Lật Thẻ 3D</span>
                       <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+
+                    <Link
+                      href={`/create?appendDeckId=${deck.id}&type=FLASHCARD`}
+                      className="p-2.5 rounded-2xl border border-border hover:bg-purple-50 dark:hover:bg-purple-950/40 text-muted-foreground hover:text-purple-600 transition-colors"
+                      title="Nạp thêm thẻ vào bộ flashcard này"
+                    >
+                      <Plus className="h-4 w-4" />
                     </Link>
 
                     <button

@@ -287,6 +287,15 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
             <ChevronRight className="h-3.5 w-3.5" />
           </Link>
 
+          {/* Append More Questions / Flashcards Button */}
+          <Link
+            href={`/create?appendDeckId=${deck.id}&type=${deck.type}`}
+            className="p-1.5 rounded-xl text-muted-foreground hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/50 transition-colors"
+            title={`Nạp thêm ${isMCQ ? "câu hỏi" : "thẻ"} vào bộ đề này`}
+          >
+            <Plus className="h-4 w-4" />
+          </Link>
+
           {/* Delete Deck Button */}
           <button
             type="button"

@@ -47,6 +47,11 @@ interface AuthContextType {
     parentFolderId?: string
   ) => { success: boolean; error?: string };
   deleteUserDeck: (deckId: string) => { success: boolean; error?: string };
+  appendItemsToExistingDeck: (
+    deckId: string,
+    newQuestions?: MCQQuestion[],
+    newFlashcards?: FlashcardItem[]
+  ) => { success: boolean; error?: string; updatedDeck?: Deck; folderName?: string };
 }
 
 // Initial clean Bloom taxonomy stats starting from 0
@@ -727,6 +732,96 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   };
 
+  // APPEND ITEMS (MCQ / FLASHCARDS) TO AN EXISTING DECK
+  const appendItemsToExistingDeck = (
+    deckId: string,
+    newQuestions?: MCQQuestion[],
+    newFlashcards?: FlashcardItem[]
+  ): { success: boolean; error?: string; updatedDeck?: Deck; folderName?: string } => {
+    if (!user) return { success: false, error: "Vui lòng đăng nhập!" };
+
+    let foundDeck: Deck | null = null;
+    let foundFolderName = "Cây Thư Mục";
+    const currentFolders = getUserFolders();
+
+    // 1. Update inside User's Folder Tree
+    const updateInTree = (nodes: FolderNode[], pathPrefix = ""): FolderNode[] => {
+      return nodes.map((f) => {
+        const currentPath = pathPrefix ? `${pathPrefix} / ${f.name}` : f.name;
+        const updatedDecks = (f.decks || []).map((d) => {
+          if (d.id === deckId) {
+            const updatedQuestions = newQuestions && newQuestions.length > 0
+              ? [...(d.questions || []), ...newQuestions]
+              : d.questions;
+            const updatedCards = newFlashcards && newFlashcards.length > 0
+              ? [...(d.flashcards || []), ...newFlashcards]
+              : d.flashcards;
+            const newCount = d.type === "MCQ" ? (updatedQuestions?.length || 0) : (updatedCards?.length || 0);
+
+            const modified: Deck = {
+              ...d,
+              questions: updatedQuestions,
+              flashcards: updatedCards,
+              itemCount: newCount,
+              updatedAt: new Date().toISOString().split("T")[0],
+            };
+            foundDeck = modified;
+            foundFolderName = currentPath;
+            return modified;
+          }
+          return d;
+        });
+
+        return {
+          ...f,
+          decks: updatedDecks,
+          children: f.children ? updateInTree(f.children, currentPath) : [],
+        };
+      });
+    };
+
+    const updatedFolders = updateInTree(currentFolders);
+    saveUserFolders(updatedFolders);
+
+    // 2. Also update in User's Scoped Custom Decks
+    try {
+      const userCustomKey = `medlearn_custom_decks_${user.id}`;
+      const stored = localStorage.getItem(userCustomKey);
+      if (stored) {
+        const list: Deck[] = JSON.parse(stored);
+        const updatedList = list.map((d) => {
+          if (d.id === deckId) {
+            const updatedQuestions = newQuestions && newQuestions.length > 0
+              ? [...(d.questions || []), ...newQuestions]
+              : d.questions;
+            const updatedCards = newFlashcards && newFlashcards.length > 0
+              ? [...(d.flashcards || []), ...newFlashcards]
+              : d.flashcards;
+            const newCount = d.type === "MCQ" ? (updatedQuestions?.length || 0) : (updatedCards?.length || 0);
+
+            const modified: Deck = {
+              ...d,
+              questions: updatedQuestions,
+              flashcards: updatedCards,
+              itemCount: newCount,
+              updatedAt: new Date().toISOString().split("T")[0],
+            };
+            if (!foundDeck) foundDeck = modified;
+            return modified;
+          }
+          return d;
+        });
+        localStorage.setItem(userCustomKey, JSON.stringify(updatedList));
+      }
+    } catch (e) {}
+
+    if (!foundDeck) {
+      return { success: false, error: "Không tìm thấy bộ đề trong hệ thống!" };
+    }
+
+    return { success: true, updatedDeck: foundDeck, folderName: foundFolderName };
+  };
+
   // SHARING
   const sendShareRequest = (
     folder: FolderNode,
@@ -844,6 +939,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         getUserDecks,
         saveUserDeck,
         deleteUserDeck,
+        appendItemsToExistingDeck,
       }}
     >
       {children}

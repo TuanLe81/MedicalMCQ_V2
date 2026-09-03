@@ -7,7 +7,7 @@ import { BloomLevel, MCQQuestion, FlashcardItem, DeckType, FolderNode, Deck } fr
 import { BLOOM_TAXONOMY_MAP, MEDICAL_SPECIALTIES } from "@/constants/bloom";
 import { BloomBadge } from "@/components/mcq/bloom-badge";
 import { AuthGuard } from "@/components/auth-guard";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, DeckWithFolder } from "@/lib/auth-context";
 import {
   FilePlus,
   Layers,
@@ -42,8 +42,20 @@ import { cn } from "@/lib/utils";
 
 export default function CreateStudioPage() {
   const router = useRouter();
-  const { user, getUserFolders, saveUserFolders, saveUserDeck } = useAuth();
+  const {
+    user,
+    getUserFolders,
+    saveUserFolders,
+    saveUserDeck,
+    getUserDecks,
+    appendItemsToExistingDeck,
+  } = useAuth();
   const [activeTab, setActiveTab] = useState<"AI_GEN" | "BATCH" | "MCQ" | "FLASHCARD">("AI_GEN");
+
+  // Destination Mode: CREATE NEW DECK vs APPEND TO EXISTING DECK
+  const [importTargetMode, setImportTargetMode] = useState<"NEW_DECK" | "APPEND_EXISTING">("NEW_DECK");
+  const [appendTargetDeckId, setAppendTargetDeckId] = useState<string>("");
+  const [existingUserDecks, setExistingUserDecks] = useState<DeckWithFolder[]>([]);
 
   // Destination Folder State with Full Hierarchy (Root + Subfolders)
   const [availableFolders, setAvailableFolders] = useState<FolderNode[]>([]);
@@ -153,7 +165,7 @@ export default function CreateStudioPage() {
     return list;
   };
 
-  // Load User Folders and extract full hierarchical tree (including subfolders)
+  // Load User Folders and existing Decks for appending
   useEffect(() => {
     const folders = getUserFolders();
     setAvailableFolders(folders);
@@ -163,6 +175,26 @@ export default function CreateStudioPage() {
       setTargetFolderId(flat[0].id);
     } else {
       setTargetFolderId("CREATE_NEW");
+    }
+
+    const allDecks = getUserDecks();
+    setExistingUserDecks(allDecks);
+
+    // Read URL query params if user clicked "Nạp thêm" from Quiz or Flashcards view
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const urlAppendId = params.get("appendDeckId");
+      const urlType = params.get("type");
+      if (urlAppendId) {
+        setImportTargetMode("APPEND_EXISTING");
+        setAppendTargetDeckId(urlAppendId);
+        if (urlType === "MCQ" || urlType === "FLASHCARD") {
+          setBatchType(urlType);
+        }
+        setActiveTab("BATCH");
+      } else if (allDecks.length > 0) {
+        setAppendTargetDeckId(allDecks[0].id);
+      }
     }
   }, [user]);
 
@@ -613,13 +645,55 @@ Bloom: (Chọn 1 trong các mức: REMEMBERING, UNDERSTANDING, APPLYING, ANALYZI
     }
   };
 
-  // SAVE DECK TO FOLDER TREE & USER STORAGE
+  // SAVE DECK TO FOLDER TREE & USER STORAGE (NEW DECK OR APPEND EXISTING)
   const handleSaveToLocalStorage = () => {
-    const newDeckId = `custom_deck_${Date.now()}`;
     const isMCQ = batchType === "MCQ";
     const effectiveSpec = getEffectiveSpecialty();
     const count = isMCQ ? parsedMCQs.length : parsedFlashcards.length;
 
+    if (count === 0) {
+      setParseErrors(["Chưa có câu hỏi hoặc thẻ nào được phân tích thành công để lưu!"]);
+      return;
+    }
+
+    // MODE 1: APPEND ITEMS INTO AN EXISTING DECK
+    if (importTargetMode === "APPEND_EXISTING") {
+      if (!appendTargetDeckId) {
+        setParseErrors(["Vui lòng chọn bộ đề mà bạn muốn nạp tiếp câu hỏi/thẻ vào!"]);
+        return;
+      }
+
+      const res = appendItemsToExistingDeck(
+        appendTargetDeckId,
+        isMCQ ? parsedMCQs : undefined,
+        !isMCQ ? parsedFlashcards : undefined
+      );
+
+      if (!res.success) {
+        setParseErrors([res.error || "Lỗi khi nạp bổ sung vào bộ đề!"]);
+        return;
+      }
+
+      // Open Import Success Modal
+      setSuccessModalData({
+        isOpen: true,
+        title: res.updatedDeck?.title || "Bộ Đề",
+        type: isMCQ ? "MCQ" : "FLASHCARD",
+        itemCount: res.updatedDeck?.itemCount || count,
+        addedCount: count,
+        specialty: res.updatedDeck?.specialty || effectiveSpec,
+        folderName: res.folderName || "Cây Thư Mục",
+        deckId: appendTargetDeckId,
+        isAppended: true,
+      });
+
+      // Refresh existing decks
+      setExistingUserDecks(getUserDecks());
+      return;
+    }
+
+    // MODE 2: CREATE BRAND NEW DECK
+    const newDeckId = `custom_deck_${Date.now()}`;
     let targetFolderTitle = "Thư Mục Mới";
     if (targetFolderId === "CREATE_NEW") {
       const parentObj = flattenedFolders.find((f) => f.id === newFolderParentId);
@@ -637,7 +711,7 @@ Bloom: (Chọn 1 trong các mức: REMEMBERING, UNDERSTANDING, APPLYING, ANALYZI
 
     const newDeck: Deck = {
       id: newDeckId,
-      title: batchTargetDeckTitle || "Bộ Đề Y Khoa Mới",
+      title: batchTargetDeckTitle || (isMCQ ? "Bộ Đề Trắc Nghiệm Mới" : "Bộ Thẻ Flashcard Mới"),
       description: `Tạo với ${count} mục theo thang đo Bloom • ${effectiveSpec}`,
       type: isMCQ ? "MCQ" : "FLASHCARD",
       specialty: effectiveSpec,
@@ -659,7 +733,11 @@ Bloom: (Chọn 1 trong các mức: REMEMBERING, UNDERSTANDING, APPLYING, ANALYZI
       specialty: effectiveSpec,
       folderName: targetFolderTitle,
       deckId: newDeckId,
+      isAppended: false,
     });
+
+    // Refresh existing decks
+    setExistingUserDecks(getUserDecks());
   };
 
   const handleResetForm = () => {
@@ -692,128 +770,248 @@ Bloom: (Chọn 1 trong các mức: REMEMBERING, UNDERSTANDING, APPLYING, ANALYZI
           </div>
         </div>
 
-        {/* DESTINATION FOLDER & SPECIALTY CONFIGURATION BANNER */}
+        {/* DESTINATION CONFIGURATION BANNER (CREATE NEW VS APPEND TO EXISTING DECK) */}
         <div className="p-6 rounded-3xl border border-sky-200 dark:border-sky-900/60 bg-gradient-to-br from-sky-500/5 via-card to-indigo-500/5 shadow-sm space-y-4">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-700 dark:text-sky-300">
-            <FolderTree className="h-4 w-4" />
-            <span>CẤU HÌNH ĐÍCH LƯU TRỮ VÀO CÂY THƯ MỤC &amp; CHUYÊN KHOA</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-700 dark:text-sky-300">
+              <FolderTree className="h-4 w-4" />
+              <span>CẤU HÌNH ĐÍCH ĐẾN CÂY THƯ MỤC &amp; BỘ ĐỀ</span>
+            </div>
+
+            {/* Target Mode Toggle */}
+            <div className="flex items-center gap-1.5 p-1 rounded-xl bg-background/80 border border-border">
+              <button
+                type="button"
+                onClick={() => setImportTargetMode("NEW_DECK")}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all",
+                  importTargetMode === "NEW_DECK"
+                    ? "bg-sky-600 text-white shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>Tạo Bộ Đề Mới</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setImportTargetMode("APPEND_EXISTING");
+                  const matching = existingUserDecks.filter((d) => d.type === batchType);
+                  if (matching.length > 0 && !matching.some((d) => d.id === appendTargetDeckId)) {
+                    setAppendTargetDeckId(matching[0].id);
+                  }
+                }}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all",
+                  importTargetMode === "APPEND_EXISTING"
+                    ? "bg-purple-600 text-white shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Nạp Tiếp Vào Bộ Đề Đã Có ({existingUserDecks.filter((d) => d.type === batchType).length})</span>
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Folder Destination Selector with Full Tree & Subfolders */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-foreground flex items-center justify-between">
-                <span>📁 Đích Thư Mục Trong &ldquo;Cây Thư Mục&rdquo; *</span>
-                <span className="text-[10px] text-sky-600 dark:text-sky-400 font-semibold">Hiển thị toàn bộ thư mục &amp; thư mục con</span>
-              </label>
-
-              <select
-                value={targetFolderId}
-                onChange={(e) => setTargetFolderId(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs font-bold text-foreground outline-none focus:ring-2 focus:ring-sky-500/50"
-              >
-                <option value="CREATE_NEW">➕ [+] Tạo Thư Mục Mới (Tùy Chọn Vị Trí)...</option>
-                {flattenedFolders.length > 0 && (
-                  <optgroup label="─── TOÀN BỘ CÂY THƯ MỤC CỦA BẠN (CẢ THƯ MỤC CON) ───">
-                    {flattenedFolders.map((f) => {
-                      const indent = f.depth > 0 ? "　".repeat(f.depth) + "↳ 📂 " : "📁 ";
-                      const levelTag = f.depth === 0 ? "[Gốc]" : `[Con cấp ${f.depth}]`;
-                      return (
-                        <option key={f.id} value={f.id}>
-                          {indent}{f.name} {levelTag} ({f.fullPath}) {f.isShared ? "• [Được chia sẻ]" : ""}
-                        </option>
-                      );
-                    })}
-                  </optgroup>
-                )}
-              </select>
-
-              {/* Selected Destination Breadcrumb Preview */}
-              {targetFolderId !== "CREATE_NEW" && (
-                <div className="p-2 rounded-xl bg-sky-50/80 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800 text-[11px] text-sky-800 dark:text-sky-200 flex items-center justify-between gap-2 animate-in fade-in">
-                  <div className="flex items-center gap-1.5 truncate">
-                    <FolderTree className="h-3.5 w-3.5 text-sky-600 shrink-0" />
-                    <span className="truncate">
-                      Đích đến: <strong>{flattenedFolders.find((f) => f.id === targetFolderId)?.fullPath || "Thư mục"}</strong>
-                    </span>
-                  </div>
-                  <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-md bg-sky-600 text-white font-bold">
-                    {flattenedFolders.find((f) => f.id === targetFolderId)?.depth === 0 ? "Thư mục gốc" : `Cấp con ${flattenedFolders.find((f) => f.id === targetFolderId)?.depth}`}
+          {/* MODE 1: APPEND TO EXISTING DECK */}
+          {importTargetMode === "APPEND_EXISTING" && (
+            <div className="space-y-3 animate-in fade-in">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-foreground flex items-center justify-between">
+                  <span>🎯 Chọn Bộ Đề {batchType === "MCQ" ? "Trắc Nghiệm MCQ" : "Thẻ Flashcard"} Cần Nạp Thêm *</span>
+                  <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">
+                    {existingUserDecks.filter((d) => d.type === batchType).length} bộ đề {batchType} trong Cây Thư Mục
                   </span>
-                </div>
-              )}
+                </label>
 
-              {/* Create New Folder with Parent Destination Option */}
-              {targetFolderId === "CREATE_NEW" && (
-                <div className="p-3 rounded-2xl bg-card border border-sky-200 dark:border-sky-900 shadow-xs space-y-2.5 animate-in fade-in">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-foreground">Tên thư mục mới *</label>
-                    <input
-                      type="text"
-                      required
-                      value={newFolderName}
-                      onChange={(e) => setNewFolderName(e.target.value)}
-                      placeholder="Nhập tên thư mục mới (VD: Nội Khoa Y4, Dược Lý, Cấp Cứu...)"
-                      className="w-full px-3 py-2 rounded-xl border border-sky-300 dark:border-sky-800 bg-background text-xs font-semibold text-foreground focus:ring-2 focus:ring-sky-500/50 outline-none"
-                    />
+                <select
+                  value={appendTargetDeckId}
+                  onChange={(e) => setAppendTargetDeckId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-purple-300 dark:border-purple-800 bg-background text-xs font-bold text-foreground outline-none focus:ring-2 focus:ring-purple-500/50"
+                >
+                  <option value="">-- Bấm để chọn bộ đề cần nạp thêm câu hỏi/thẻ --</option>
+                  {existingUserDecks
+                    .filter((d) => d.type === batchType)
+                    .map((d) => (
+                      <option key={d.id} value={d.id}>
+                        📁 [{d.folderName || "Thư mục gốc"}] • {d.title} ({d.itemCount} {d.type === "MCQ" ? "câu" : "thẻ"})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Selected Target Live Information Card */}
+              {(() => {
+                const targetDeck = existingUserDecks.find((d) => d.id === appendTargetDeckId);
+                const newItemsCount = batchType === "MCQ" ? parsedMCQs.length : parsedFlashcards.length;
+                if (!targetDeck) {
+                  return (
+                    <div className="p-3.5 rounded-2xl bg-muted/40 border border-border text-center text-xs text-muted-foreground">
+                      Chưa chọn bộ đề nào hoặc chưa có bộ đề {batchType === "MCQ" ? "MCQ" : "Flashcard"} nào. Bạn có thể chọn &ldquo;Tạo Bộ Đề Mới&rdquo; bên trên!
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="p-4 rounded-2xl bg-card border border-purple-200 dark:border-purple-900 shadow-2xs space-y-2 animate-in fade-in">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="px-2 py-0.5 rounded-md bg-purple-600 text-white font-black text-[10px]">
+                          {targetDeck.type}
+                        </span>
+                        <span className="font-extrabold text-foreground text-sm truncate">{targetDeck.title}</span>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 font-bold text-xs text-purple-700 dark:text-purple-300">
+                        {targetDeck.specialty}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border/50">
+                      <span className="flex items-center gap-1.5 truncate">
+                        <FolderTree className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                        <span>Nguồn Cây Thư Mục: <strong className="text-foreground">{targetDeck.folderName || "Thư Mục Gốc"}</strong></span>
+                      </span>
+                      <span className="font-bold text-purple-600 shrink-0">
+                        Hiện có: {targetDeck.itemCount} {targetDeck.type === "MCQ" ? "câu hỏi" : "thẻ"}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-900/80 text-[11px] text-purple-900 dark:text-purple-200 font-semibold flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                        <span>Số lượng dự kiến sau khi nạp:</span>
+                      </span>
+                      <span className="font-black text-xs text-emerald-600 dark:text-emerald-400">
+                        {targetDeck.itemCount} + {newItemsCount} = {targetDeck.itemCount + newItemsCount} {targetDeck.type === "MCQ" ? "câu" : "thẻ"}
+                      </span>
+                    </div>
                   </div>
+                );
+              })()}
+            </div>
+          )}
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-foreground">Vị trí tạo thư mục mới trong Cây Thư Mục:</label>
-                    <select
-                      value={newFolderParentId}
-                      onChange={(e) => setNewFolderParentId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-border bg-background text-xs font-medium text-foreground outline-none focus:ring-2 focus:ring-sky-500/50"
-                    >
-                      <option value="ROOT">📁 Đặt ở Thư Mục Gốc (Cấp cao nhất)</option>
+          {/* MODE 2: CREATE NEW DECK */}
+          {importTargetMode === "NEW_DECK" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in">
+              {/* Folder Destination Selector with Full Tree & Subfolders */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-foreground flex items-center justify-between">
+                  <span>📁 Đích Thư Mục Trong &ldquo;Cây Thư Mục&rdquo; *</span>
+                  <span className="text-[10px] text-sky-600 dark:text-sky-400 font-semibold">Hiển thị toàn bộ thư mục &amp; thư mục con</span>
+                </label>
+
+                <select
+                  value={targetFolderId}
+                  onChange={(e) => setTargetFolderId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs font-bold text-foreground outline-none focus:ring-2 focus:ring-sky-500/50"
+                >
+                  <option value="CREATE_NEW">➕ [+] Tạo Thư Mục Mới (Tùy Chọn Vị Trí)...</option>
+                  {flattenedFolders.length > 0 && (
+                    <optgroup label="─── TOÀN BỘ CÂY THƯ MỤC CỦA BẠN (CẢ THƯ MỤC CON) ───">
                       {flattenedFolders.map((f) => {
                         const indent = f.depth > 0 ? "　".repeat(f.depth) + "↳ 📂 " : "📁 ";
+                        const levelTag = f.depth === 0 ? "[Gốc]" : `[Con cấp ${f.depth}]`;
                         return (
-                          <option key={`parent_${f.id}`} value={f.id}>
-                            {indent}Làm thư mục con của: {f.name} ({f.fullPath})
+                          <option key={f.id} value={f.id}>
+                            {indent}{f.name} {levelTag} ({f.fullPath}) {f.isShared ? "• [Được chia sẻ]" : ""}
                           </option>
                         );
                       })}
-                    </select>
+                    </optgroup>
+                  )}
+                </select>
+
+                {/* Selected Destination Breadcrumb Preview */}
+                {targetFolderId !== "CREATE_NEW" && (
+                  <div className="p-2 rounded-xl bg-sky-50/80 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800 text-[11px] text-sky-800 dark:text-sky-200 flex items-center justify-between gap-2 animate-in fade-in">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <FolderTree className="h-3.5 w-3.5 text-sky-600 shrink-0" />
+                      <span className="truncate">
+                        Đích đến: <strong>{flattenedFolders.find((f) => f.id === targetFolderId)?.fullPath || "Thư mục"}</strong>
+                      </span>
+                    </div>
+                    <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-md bg-sky-600 text-white font-bold">
+                      {flattenedFolders.find((f) => f.id === targetFolderId)?.depth === 0 ? "Thư mục gốc" : `Cấp con ${flattenedFolders.find((f) => f.id === targetFolderId)?.depth}`}
+                    </span>
                   </div>
-                </div>
-              )}
+                )}
+
+                {/* Create New Folder with Parent Destination Option */}
+                {targetFolderId === "CREATE_NEW" && (
+                  <div className="p-3 rounded-2xl bg-card border border-sky-200 dark:border-sky-900 shadow-xs space-y-2.5 animate-in fade-in">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-foreground">Tên thư mục mới *</label>
+                      <input
+                        type="text"
+                        required
+                        value={newFolderName}
+                        onChange={(e) => setNewFolderName(e.target.value)}
+                        placeholder="Nhập tên thư mục mới (VD: Nội Khoa Y4, Dược Lý, Cấp Cứu...)"
+                        className="w-full px-3 py-2 rounded-xl border border-sky-300 dark:border-sky-800 bg-background text-xs font-semibold text-foreground focus:ring-2 focus:ring-sky-500/50 outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-foreground">Vị trí tạo thư mục mới trong Cây Thư Mục:</label>
+                      <select
+                        value={newFolderParentId}
+                        onChange={(e) => setNewFolderParentId(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-border bg-background text-xs font-medium text-foreground outline-none focus:ring-2 focus:ring-sky-500/50"
+                      >
+                        <option value="ROOT">📁 Đặt ở Thư Mục Gốc (Cấp cao nhất)</option>
+                        {flattenedFolders.map((f) => {
+                          const indent = f.depth > 0 ? "　".repeat(f.depth) + "↳ 📂 " : "📁 ";
+                          return (
+                            <option key={`parent_${f.id}`} value={f.id}>
+                              {indent}Làm thư mục con của: {f.name} ({f.fullPath})
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Specialty Selector with Custom Option */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-foreground flex items-center justify-between">
+                  <span>🩺 Chuyên Khoa Y Học *</span>
+                  <span className="text-[10px] text-muted-foreground">Có hỗ trợ tự gõ mục khác</span>
+                </label>
+
+                <select
+                  value={isCustomSpecialty ? "KHAC" : targetSpecialty}
+                  onChange={(e) => handleSpecialtyChange(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs font-bold text-foreground outline-none focus:ring-2 focus:ring-sky-500/50"
+                >
+                  {MEDICAL_SPECIALTIES.filter((s) => s !== "Tất cả chuyên khoa").map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                  <option value="KHAC">✨ [Các mục khác] - Tự Nhập Chuyên Khoa Tùy Chọn...</option>
+                </select>
+
+                {isCustomSpecialty && (
+                  <div className="pt-1 animate-in fade-in">
+                    <input
+                      type="text"
+                      required
+                      value={customSpecialty}
+                      onChange={(e) => setCustomSpecialty(e.target.value)}
+                      placeholder="Nhập tên chuyên khoa của bạn (VD: Da Liễu, Chẩn Đoán Hình Ảnh, Răng Hàm Mặt, Y Học Cổ Truyền, Dinh Dưỡng...)"
+                      className="w-full px-3.5 py-2 rounded-xl border border-indigo-300 dark:border-indigo-800 bg-background text-xs font-semibold text-foreground focus:ring-2 focus:ring-indigo-500/50 outline-none"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
-
-            {/* Specialty Selector with Custom Option */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-foreground flex items-center justify-between">
-                <span>🩺 Chuyên Khoa Y Học *</span>
-                <span className="text-[10px] text-muted-foreground">Có hỗ trợ tự gõ mục khác</span>
-              </label>
-
-              <select
-                value={isCustomSpecialty ? "KHAC" : targetSpecialty}
-                onChange={(e) => handleSpecialtyChange(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs font-bold text-foreground outline-none focus:ring-2 focus:ring-sky-500/50"
-              >
-                {MEDICAL_SPECIALTIES.filter((s) => s !== "Tất cả chuyên khoa").map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-                <option value="KHAC">✨ [Các mục khác] - Tự Nhập Chuyên Khoa Tùy Chọn...</option>
-              </select>
-
-              {isCustomSpecialty && (
-                <div className="pt-1 animate-in fade-in">
-                  <input
-                    type="text"
-                    required
-                    value={customSpecialty}
-                    onChange={(e) => setCustomSpecialty(e.target.value)}
-                    placeholder="Nhập tên chuyên khoa của bạn (VD: Da Liễu, Chẩn Đoán Hình Ảnh, Răng Hàm Mặt, Y Học Cổ Truyền, Dinh Dưỡng...)"
-                    className="w-full px-3.5 py-2 rounded-xl border border-indigo-300 dark:border-indigo-800 bg-background text-xs font-semibold text-foreground focus:ring-2 focus:ring-indigo-500/50 outline-none"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Tabs Switcher */}
@@ -1636,15 +1834,29 @@ Bloom: (Chọn 1 trong các mức: REMEMBERING, UNDERSTANDING, APPLYING, ANALYZI
             <div className="w-full max-w-lg rounded-3xl border-2 border-emerald-500 bg-card p-6 sm:p-8 shadow-2xl space-y-6 animate-in zoom-in-95">
               {/* Header */}
               <div className="text-center space-y-2">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 shadow-inner">
+                <div className={cn(
+                  "mx-auto flex h-16 w-16 items-center justify-center rounded-3xl shadow-inner",
+                  successModalData.isAppended
+                    ? "bg-purple-100 dark:bg-purple-950 text-purple-600"
+                    : "bg-emerald-100 dark:bg-emerald-950 text-emerald-600"
+                )}>
                   <CheckCircle2 className="h-9 w-9" />
                 </div>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 text-xs font-bold">
+                <div className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold",
+                  successModalData.isAppended
+                    ? "bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-200"
+                    : "bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200"
+                )}>
                   <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                  <span>NHẬP THÀNH CÔNG VÀO CÂY THƯ MỤC!</span>
+                  <span>
+                    {successModalData.isAppended ? "ĐÃ NẠP TIẾP THÀNH CÔNG VÀO BỘ ĐỀ!" : "NHẬP THÀNH CÔNG VÀO CÂY THƯ MỤC!"}
+                  </span>
                 </div>
                 <h2 className="text-xl sm:text-2xl font-black text-foreground">
-                  Đã Lưu Thành Công Bộ Đề
+                  {successModalData.isAppended
+                    ? `Đã Bổ Sung +${successModalData.addedCount} ${successModalData.type === "MCQ" ? "Câu Hỏi Mới" : "Thẻ Mới"}`
+                    : "Đã Lưu Thành Công Bộ Đề"}
                 </h2>
               </div>
 
@@ -1654,10 +1866,18 @@ Bloom: (Chọn 1 trong các mức: REMEMBERING, UNDERSTANDING, APPLYING, ANALYZI
                   <span className="text-muted-foreground font-semibold">Tên bộ đề:</span>
                   <span className="font-bold text-foreground text-sm">{successModalData.title}</span>
                 </div>
+                {successModalData.isAppended && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground font-semibold">Đã nạp bổ sung:</span>
+                    <span className="font-bold text-emerald-600 text-sm">
+                      +{successModalData.addedCount} {successModalData.type === "MCQ" ? "câu hỏi mới" : "thẻ mới"}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground font-semibold">Loại bộ đề:</span>
-                  <span className="font-bold text-sky-600">
-                    {successModalData.type === "MCQ" ? `Trắc Nghiệm MCQ (${successModalData.itemCount} câu)` : `Thẻ Flashcard 3D (${successModalData.itemCount} thẻ)`}
+                  <span className="text-muted-foreground font-semibold">Tổng hiện có trong bộ đề:</span>
+                  <span className="font-extrabold text-sky-600">
+                    {successModalData.type === "MCQ" ? `${successModalData.itemCount} câu hỏi` : `${successModalData.itemCount} thẻ ghi nhớ`}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -1665,7 +1885,7 @@ Bloom: (Chọn 1 trong các mức: REMEMBERING, UNDERSTANDING, APPLYING, ANALYZI
                   <span className="font-bold text-foreground">{successModalData.specialty}</span>
                 </div>
                 <div className="flex items-center justify-between border-t border-border/60 pt-2">
-                  <span className="text-muted-foreground font-semibold">Đích Cây Thư Mục:</span>
+                  <span className="text-muted-foreground font-semibold">Vị trí Cây Thư Mục:</span>
                   <span className="font-bold text-indigo-600">📁 {successModalData.folderName}</span>
                 </div>
               </div>
