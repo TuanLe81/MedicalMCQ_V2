@@ -7,6 +7,28 @@ const GITHUB_TOKEN =
 const GIST_ID =
   process.env.GITHUB_SYNC_GIST_ID || "d91ec6c41f2cff17928bcfab1a655a98";
 
+async function getGistFileContent(fileObj: any): Promise<string> {
+  if (!fileObj) return "";
+  if (fileObj.content && !fileObj.truncated) {
+    return fileObj.content;
+  }
+  if (fileObj.raw_url) {
+    try {
+      const rawRes = await fetch(fileObj.raw_url, {
+        headers: {
+          Authorization: `Bearer ${GITHUB_TOKEN}`,
+          "User-Agent": "MedLearn-App",
+        },
+        cache: "no-store",
+      });
+      if (rawRes.ok) {
+        return await rawRes.text();
+      }
+    } catch (e) {}
+  }
+  return fileObj.content || "";
+}
+
 export async function getGistData(): Promise<{
   users: any[];
   folders: Record<string, any[]>;
@@ -35,29 +57,41 @@ export async function getGistData(): Promise<{
     let decks: Record<string, any[]> = {};
     let shareRequests: any[] = [];
 
-    if (files["medlearn_users.json"]?.content) {
+    if (files["medlearn_users.json"]) {
       try {
-        const parsed = JSON.parse(files["medlearn_users.json"].content);
-        users = Array.isArray(parsed) ? parsed : parsed.users || [];
+        const content = await getGistFileContent(files["medlearn_users.json"]);
+        if (content && content.trim()) {
+          const parsed = JSON.parse(content);
+          users = Array.isArray(parsed) ? parsed : parsed.users || [];
+        }
       } catch (e) {}
     }
 
-    if (files["medlearn_folders.json"]?.content) {
+    if (files["medlearn_folders.json"]) {
       try {
-        folders = JSON.parse(files["medlearn_folders.json"].content);
+        const content = await getGistFileContent(files["medlearn_folders.json"]);
+        if (content && content.trim()) {
+          folders = JSON.parse(content);
+        }
       } catch (e) {}
     }
 
-    if (files["medlearn_decks.json"]?.content) {
+    if (files["medlearn_decks.json"]) {
       try {
-        decks = JSON.parse(files["medlearn_decks.json"].content);
+        const content = await getGistFileContent(files["medlearn_decks.json"]);
+        if (content && content.trim()) {
+          decks = JSON.parse(content);
+        }
       } catch (e) {}
     }
 
-    if (files["medlearn_share_requests.json"]?.content) {
+    if (files["medlearn_share_requests.json"]) {
       try {
-        const parsed = JSON.parse(files["medlearn_share_requests.json"].content);
-        shareRequests = Array.isArray(parsed) ? parsed : [];
+        const content = await getGistFileContent(files["medlearn_share_requests.json"]);
+        if (content && content.trim()) {
+          const parsed = JSON.parse(content);
+          shareRequests = Array.isArray(parsed) ? parsed : [];
+        }
       } catch (e) {}
     }
 

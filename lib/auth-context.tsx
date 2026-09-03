@@ -156,20 +156,25 @@ const defaultUsers: UserProfile[] = [
 ];
 
 // Helper to safely get stored users with permanent persistence
+// NEVER removes existing registered users — only adds missing defaults
 const getStoredUsers = (): UserProfile[] => {
   if (typeof window === "undefined") return defaultUsers;
   try {
     const str = localStorage.getItem("medlearn_users");
     let list: UserProfile[] = str ? JSON.parse(str) : [];
 
+    // Ensure list is always an array
+    if (!Array.isArray(list)) list = [];
+
+    // Add default/demo users only if they don't already exist (match by id, email, OR username)
     for (const defU of defaultUsers) {
-      if (
-        !list.some(
-          (u) =>
-            u.email?.toLowerCase() === defU.email?.toLowerCase() ||
-            u.username?.toLowerCase() === defU.username?.toLowerCase()
-        )
-      ) {
+      const alreadyExists = list.some(
+        (u) =>
+          u.id === defU.id ||
+          (u.email && defU.email && u.email.toLowerCase().trim() === defU.email.toLowerCase().trim()) ||
+          (u.username && defU.username && u.username.toLowerCase().trim() === defU.username.toLowerCase().trim())
+      );
+      if (!alreadyExists) {
         list.push(defU);
       }
     }
@@ -182,6 +187,7 @@ const getStoredUsers = (): UserProfile[] => {
 };
 
 // Sync registered users bidirectionally between LocalStorage and Cloud Database
+// CRITICAL: This function MUST NEVER delete or overwrite an existing registered account
 const syncUsersWithCloud = async (): Promise<UserProfile[]> => {
   if (typeof window === "undefined") return defaultUsers;
   try {
@@ -193,7 +199,81 @@ const syncUsersWithCloud = async (): Promise<UserProfile[]> => {
     const cloudUsers: UserProfile[] = data.users;
     const localUsers = getStoredUsers();
 
-    // Check if local storage has any registered users not yet in cloud (e.g. from earlier sessions)
+    // ========================================================================
+    // SAFE MERGE STRATEGY:
+    // 1. Start with ALL local users (never lose a local account)
+    // 2. Add cloud-only users that don't exist locally
+    // 3. For users that exist in BOTH, keep the version with more data/password
+    // ========================================================================
+    const mergedMap = new Map<string, UserProfile>();
+
+    // Phase 1: Index ALL local users by ID, email, username
+    localUsers.forEach((u) => {
+      mergedMap.set(u.id, u);
+    });
+
+    // Phase 2: Merge cloud users — only ADD new ones, never overwrite existing with password
+    cloudUsers.forEach((cloudUser) => {
+      // Find existing local user by ID, email, or username
+      let existingKey: string | null = null;
+
+      if (mergedMap.has(cloudUser.id)) {
+        existingKey = cloudUser.id;
+      } else {
+        // Search by email or username
+        for (const [key, localUser] of mergedMap.entries()) {
+          const emailMatch =
+            cloudUser.email &&
+            localUser.email &&
+            cloudUser.email.toLowerCase().trim() === localUser.email.toLowerCase().trim();
+          const usernameMatch =
+            cloudUser.username &&
+            localUser.username &&
+            cloudUser.username.toLowerCase().trim() === localUser.username.toLowerCase().trim();
+          if (emailMatch || usernameMatch) {
+            existingKey = key;
+            break;
+          }
+        }
+      }
+
+      if (existingKey) {
+        // User exists locally — carefully merge, NEVER lose password or stats
+        const existing = mergedMap.get(existingKey)!;
+        const merged: UserProfile = {
+          ...existing,
+          // Keep the password that actually exists (local password takes priority)
+          password: existing.password || cloudUser.password,
+          // Keep higher stats
+          totalQuestionsAnswered: Math.max(
+            existing.totalQuestionsAnswered || 0,
+            cloudUser.totalQuestionsAnswered || 0
+          ),
+          totalCorrectAnswers: Math.max(
+            existing.totalCorrectAnswers || 0,
+            cloudUser.totalCorrectAnswers || 0
+          ),
+          streakCount: Math.max(
+            existing.streakCount || 1,
+            cloudUser.streakCount || 1
+          ),
+          // Keep the more complete email/username
+          email: existing.email || cloudUser.email,
+          username: existing.username || cloudUser.username,
+          name: existing.name || cloudUser.name,
+          medicalSchool: existing.medicalSchool || cloudUser.medicalSchool,
+        };
+        mergedMap.set(existingKey, merged);
+      } else {
+        // New user from cloud — add it
+        mergedMap.set(cloudUser.id || `cloud_${Date.now()}_${Math.random().toString(36).slice(2)}`, cloudUser);
+      }
+    });
+
+    const merged = Array.from(mergedMap.values());
+    localStorage.setItem("medlearn_users", JSON.stringify(merged));
+
+    // Upload any local-only non-demo users to cloud
     const newLocalToUpload: UserProfile[] = [];
     localUsers.forEach((loc) => {
       if (loc.isDemo) return;
@@ -216,14 +296,6 @@ const syncUsersWithCloud = async (): Promise<UserProfile[]> => {
       }).catch(() => {});
     }
 
-    // Merge cloud and local users
-    const map = new Map<string, UserProfile>();
-    defaultUsers.forEach((d) => map.set(d.id, d));
-    localUsers.forEach((l) => map.set(l.id || l.username, l));
-    cloudUsers.forEach((c) => map.set(c.id || c.username, c));
-
-    const merged = Array.from(map.values());
-    localStorage.setItem("medlearn_users", JSON.stringify(merged));
     return merged;
   } catch (e) {
     return getStoredUsers();
@@ -529,33 +601,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       let usersList = getStoredUsers();
 
-      let found = usersList.find((u) => {
+      // Step 1: Find user by email or username (ignore password first)
+      let accountMatch = usersList.find((u) => {
         const emailMatch = u.email?.trim().toLowerCase() === cleanIdentity;
         const usernameMatch = u.username?.trim().toLowerCase() === cleanIdentity;
-        const passMatch = u.password?.trim() === cleanPass || cleanPass === "123";
-        return (emailMatch || usernameMatch) && passMatch;
+        return emailMatch || usernameMatch;
       });
 
-      // If not found in local storage, query Cloud Database in real time!
-      if (!found) {
+      // Step 2: If not in local, sync from Cloud Database
+      if (!accountMatch) {
         usersList = await syncUsersWithCloud();
-        found = usersList.find((u) => {
+        accountMatch = usersList.find((u) => {
           const emailMatch = u.email?.trim().toLowerCase() === cleanIdentity;
           const usernameMatch = u.username?.trim().toLowerCase() === cleanIdentity;
-          const passMatch = u.password?.trim() === cleanPass || cleanPass === "123";
-          return (emailMatch || usernameMatch) && passMatch;
+          return emailMatch || usernameMatch;
         });
       }
 
-      if (!found) {
+      // Step 3: Account not found anywhere
+      if (!accountMatch) {
         return {
           success: false,
-          error: "Tên đăng nhập / Email hoặc mật khẩu không chính xác! Vui lòng kiểm tra lại.",
+          error: "Tài khoản không tồn tại! Vui lòng kiểm tra lại email/tên đăng nhập hoặc tạo tài khoản mới.",
         };
       }
 
+      // Step 4: Account found — now check password
+      if (accountMatch.password?.trim() !== cleanPass) {
+        return {
+          success: false,
+          error: "Mật khẩu không chính xác! Vui lòng thử lại hoặc sử dụng tính năng Quên Mật Khẩu.",
+        };
+      }
+
+      // Step 5: Login successful — safely persist user to localStorage
+      const found = accountMatch;
       setUser(found);
       localStorage.setItem("medlearn_current_user", JSON.stringify(found));
+
+      // Ensure this user is persisted in the local users list (prevents account loss)
+      const existsInList = usersList.some(
+        (u) => u.id === found.id ||
+          (u.email && found.email && u.email.toLowerCase().trim() === found.email.toLowerCase().trim())
+      );
+      if (!existsInList) {
+        usersList.push(found);
+        localStorage.setItem("medlearn_users", JSON.stringify(usersList));
+      }
 
       // Download user's folders, custom decks & share requests from cloud onto this device
       if (!found.isDemo) {
@@ -570,6 +662,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: "Đã xảy ra lỗi đăng nhập, vui lòng thử lại!" };
     }
   };
+
 
   // REGISTER METHOD (Cross-Device Cloud-Synchronized)
   const register = async (data: {
