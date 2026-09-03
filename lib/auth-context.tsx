@@ -14,7 +14,7 @@ interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (identity: string, password: string) => { success: boolean; error?: string };
+  login: (identity: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (data: {
     name: string;
     username: string;
@@ -22,7 +22,7 @@ interface AuthContextType {
     password: string;
     medicalSchool: string;
     yearOfStudy: number;
-  }) => { success: boolean; error?: string };
+  }) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   // Daily Attendance & Streak System
   checkInDaily: () => { success: boolean; newStreak?: number; message?: string; alreadyCheckedIn?: boolean };
@@ -31,8 +31,8 @@ interface AuthContextType {
   // Leaderboard
   getLeaderboard: () => LeaderboardEntry[];
   // Forgot / Reset Password
-  verifyAccountExists: (identity: string) => { success: boolean; user?: UserProfile; error?: string };
-  resetPassword: (identity: string, newPass: string) => { success: boolean; error?: string };
+  verifyAccountExists: (identity: string) => Promise<{ success: boolean; user?: UserProfile; error?: string }>;
+  resetPassword: (identity: string, newPass: string) => Promise<{ success: boolean; error?: string }>;
   // Folder Sharing System
   shareRequests: FolderShareRequest[];
   sendShareRequest: (folder: FolderNode, target: string) => { success: boolean; error?: string };
@@ -173,6 +173,105 @@ const getStoredUsers = (): UserProfile[] => {
   }
 };
 
+// Sync registered users bidirectionally between LocalStorage and Cloud Database
+const syncUsersWithCloud = async (): Promise<UserProfile[]> => {
+  if (typeof window === "undefined") return defaultUsers;
+  try {
+    const res = await fetch("/api/cloud-sync/users", { cache: "no-store" });
+    if (!res.ok) return getStoredUsers();
+    const data = await res.json();
+    if (!data.success || !Array.isArray(data.users)) return getStoredUsers();
+
+    const cloudUsers: UserProfile[] = data.users;
+    const localUsers = getStoredUsers();
+
+    // Check if local storage has any registered users not yet in cloud (e.g. from earlier sessions)
+    const newLocalToUpload: UserProfile[] = [];
+    localUsers.forEach((loc) => {
+      if (loc.isDemo) return;
+      const inCloud = cloudUsers.some(
+        (c) =>
+          c.id === loc.id ||
+          (loc.email && c.email?.toLowerCase().trim() === loc.email?.toLowerCase().trim()) ||
+          (loc.username && c.username?.toLowerCase().trim() === loc.username?.toLowerCase().trim())
+      );
+      if (!inCloud) {
+        newLocalToUpload.push(loc);
+      }
+    });
+
+    if (newLocalToUpload.length > 0) {
+      fetch("/api/cloud-sync/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ users: newLocalToUpload }),
+      }).catch(() => {});
+    }
+
+    // Merge cloud and local users
+    const map = new Map<string, UserProfile>();
+    defaultUsers.forEach((d) => map.set(d.id, d));
+    localUsers.forEach((l) => map.set(l.id || l.username, l));
+    cloudUsers.forEach((c) => map.set(c.id || c.username, c));
+
+    const merged = Array.from(map.values());
+    localStorage.setItem("medlearn_users", JSON.stringify(merged));
+    return merged;
+  } catch (e) {
+    return getStoredUsers();
+  }
+};
+
+// Sync folders and custom decks for a user from Cloud Database
+const syncUserDataFromCloud = async (userId: string) => {
+  if (typeof window === "undefined" || !userId) return;
+  try {
+    const res = await fetch(`/api/cloud-sync/user-data?userId=${userId}`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.success) return;
+
+    const foldersKey = `medlearn_folders_${userId}`;
+    const decksKey = `medlearn_custom_decks_${userId}`;
+
+    const localFoldersRaw = localStorage.getItem(foldersKey);
+    const localDecksRaw = localStorage.getItem(decksKey);
+
+    const localFolders = localFoldersRaw ? JSON.parse(localFoldersRaw) : [];
+    const localDecks = localDecksRaw ? JSON.parse(localDecksRaw) : [];
+
+    // If cloud has folders and local is empty, update local
+    if (data.folders && Array.isArray(data.folders) && data.folders.length > 0) {
+      if (!localFolders || localFolders.length === 0) {
+        localStorage.setItem(foldersKey, JSON.stringify(data.folders));
+      }
+    } else if (localFolders && localFolders.length > 0) {
+      // Local has folders, cloud is empty: push local to cloud
+      fetch("/api/cloud-sync/user-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, folders: localFolders }),
+      }).catch(() => {});
+    }
+
+    // If cloud has custom decks and local is empty, update local
+    if (data.decks && Array.isArray(data.decks) && data.decks.length > 0) {
+      if (!localDecks || localDecks.length === 0) {
+        localStorage.setItem(decksKey, JSON.stringify(data.decks));
+      }
+    } else if (localDecks && localDecks.length > 0) {
+      // Local has decks, cloud is empty: push local to cloud
+      fetch("/api/cloud-sync/user-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, decks: localDecks }),
+      }).catch(() => {});
+    }
+  } catch (e) {}
+};
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -180,7 +279,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [shareRequests, setShareRequests] = useState<FolderShareRequest[]>([]);
 
-  // Initialize from LocalStorage
+  // Initialize from LocalStorage and sync in background with Cloud
   useEffect(() => {
     try {
       getStoredUsers(); // Seed and persist users
@@ -206,6 +305,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
+
+    // Run background cloud sync
+    syncUsersWithCloud().then(() => {
+      const activeUserStr = localStorage.getItem("medlearn_current_user");
+      if (activeUserStr) {
+        const parsed = JSON.parse(activeUserStr);
+        if (parsed?.id && !parsed.isDemo) {
+          syncUserDataFromCloud(parsed.id);
+        }
+      }
+    });
   }, []);
 
   // DAILY CHECK-IN & STREAK SYSTEM
@@ -350,10 +460,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // LOGIN METHOD
-  const login = (identity: string, pass: string): { success: boolean; error?: string } => {
+  // LOGIN METHOD (Cross-Device Cloud-Synchronized)
+  const login = async (
+    identity: string,
+    pass: string
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
-      const usersList = getStoredUsers();
       const cleanIdentity = identity.trim().toLowerCase();
       const cleanPass = pass.trim();
 
@@ -361,12 +473,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: "Vui lòng nhập đầy đủ tên đăng nhập/email và mật khẩu!" };
       }
 
-      const found = usersList.find((u) => {
+      let usersList = getStoredUsers();
+
+      let found = usersList.find((u) => {
         const emailMatch = u.email?.trim().toLowerCase() === cleanIdentity;
         const usernameMatch = u.username?.trim().toLowerCase() === cleanIdentity;
         const passMatch = u.password?.trim() === cleanPass || cleanPass === "123";
         return (emailMatch || usernameMatch) && passMatch;
       });
+
+      // If not found in local storage, query Cloud Database in real time!
+      if (!found) {
+        usersList = await syncUsersWithCloud();
+        found = usersList.find((u) => {
+          const emailMatch = u.email?.trim().toLowerCase() === cleanIdentity;
+          const usernameMatch = u.username?.trim().toLowerCase() === cleanIdentity;
+          const passMatch = u.password?.trim() === cleanPass || cleanPass === "123";
+          return (emailMatch || usernameMatch) && passMatch;
+        });
+      }
 
       if (!found) {
         return {
@@ -377,23 +502,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(found);
       localStorage.setItem("medlearn_current_user", JSON.stringify(found));
+
+      // Download user's folders & custom decks from cloud onto this device
+      if (!found.isDemo) {
+        await syncUserDataFromCloud(found.id);
+      }
+
       return { success: true };
     } catch (e) {
       return { success: false, error: "Đã xảy ra lỗi đăng nhập, vui lòng thử lại!" };
     }
   };
 
-  // REGISTER METHOD
-  const register = (data: {
+  // REGISTER METHOD (Cross-Device Cloud-Synchronized)
+  const register = async (data: {
     name: string;
     username: string;
     email: string;
     password: string;
     medicalSchool: string;
     yearOfStudy: number;
-  }): { success: boolean; error?: string } => {
+  }): Promise<{ success: boolean; error?: string }> => {
     try {
-      const usersList = getStoredUsers();
+      // Sync with cloud to ensure latest email/username records
+      const usersList = await syncUsersWithCloud();
       const cleanEmail = data.email.trim().toLowerCase();
       const cleanUsername = data.username.trim().toLowerCase();
       const cleanPass = data.password.trim();
@@ -442,6 +574,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem(`medlearn_folders_${newUserId}`, JSON.stringify([]));
       localStorage.setItem(`medlearn_custom_decks_${newUserId}`, JSON.stringify([]));
 
+      // Push new user to Cloud Database
+      try {
+        await fetch("/api/cloud-sync/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user: newUser }),
+        });
+      } catch (err) {}
+
       setUser(newUser);
       localStorage.setItem("medlearn_current_user", JSON.stringify(newUser));
       return { success: true };
@@ -455,17 +596,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("medlearn_current_user");
   };
 
-  // FORGOT PASSWORD
-  const verifyAccountExists = (identity: string): { success: boolean; user?: UserProfile; error?: string } => {
+  // FORGOT PASSWORD (Cross-Device Cloud-Synchronized)
+  const verifyAccountExists = async (
+    identity: string
+  ): Promise<{ success: boolean; user?: UserProfile; error?: string }> => {
     try {
       const cleanIdentity = identity.toLowerCase().trim();
-      const usersList = getStoredUsers();
+      let usersList = getStoredUsers();
 
-      const found = usersList.find(
+      let found = usersList.find(
         (u) =>
           u.email?.trim().toLowerCase() === cleanIdentity ||
           u.username?.trim().toLowerCase() === cleanIdentity
       );
+
+      // If not in local, check cloud
+      if (!found) {
+        usersList = await syncUsersWithCloud();
+        found = usersList.find(
+          (u) =>
+            u.email?.trim().toLowerCase() === cleanIdentity ||
+            u.username?.trim().toLowerCase() === cleanIdentity
+        );
+      }
 
       if (!found) {
         return {
@@ -480,18 +633,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // RESET PASSWORD
-  const resetPassword = (identity: string, newPass: string): { success: boolean; error?: string } => {
+  // RESET PASSWORD (Cross-Device Cloud-Synchronized)
+  const resetPassword = async (
+    identity: string,
+    newPass: string
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
       const cleanIdentity = identity.toLowerCase().trim();
       const cleanPass = newPass.trim();
-      const usersList = getStoredUsers();
+      let usersList = getStoredUsers();
 
-      const targetIdx = usersList.findIndex(
+      let targetIdx = usersList.findIndex(
         (u) =>
           u.email?.trim().toLowerCase() === cleanIdentity ||
           u.username?.trim().toLowerCase() === cleanIdentity
       );
+
+      if (targetIdx === -1) {
+        usersList = await syncUsersWithCloud();
+        targetIdx = usersList.findIndex(
+          (u) =>
+            u.email?.trim().toLowerCase() === cleanIdentity ||
+            u.username?.trim().toLowerCase() === cleanIdentity
+        );
+      }
 
       if (targetIdx === -1) {
         return { success: false, error: "Không tìm thấy tài khoản để đặt lại mật khẩu!" };
@@ -499,6 +664,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       usersList[targetIdx].password = cleanPass;
       localStorage.setItem("medlearn_users", JSON.stringify(usersList));
+
+      // Push updated password to Cloud Database
+      try {
+        await fetch("/api/cloud-sync/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user: usersList[targetIdx] }),
+        });
+      } catch (e) {}
 
       if (user && (user.email?.toLowerCase() === cleanIdentity || user.username?.toLowerCase() === cleanIdentity)) {
         const updated = { ...user, password: cleanPass };
@@ -510,6 +684,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       return { success: false, error: "Lỗi đặt lại mật khẩu!" };
     }
+  };
+
+  // Helper to push user folders & custom decks to cloud
+  const pushUserDecksAndFoldersToCloud = (targetUserId?: string) => {
+    const uid = targetUserId || user?.id;
+    if (!uid || user?.isDemo) return;
+    try {
+      const foldersRaw = localStorage.getItem(`medlearn_folders_${uid}`);
+      const decksRaw = localStorage.getItem(`medlearn_custom_decks_${uid}`);
+      fetch("/api/cloud-sync/user-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: uid,
+          folders: foldersRaw ? JSON.parse(foldersRaw) : undefined,
+          decks: decksRaw ? JSON.parse(decksRaw) : undefined,
+        }),
+      }).catch(() => {});
+    } catch (e) {}
   };
 
   // USER FOLDERS
@@ -536,6 +729,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!user) return { success: false, error: "Vui lòng đăng nhập!" };
       const key = `medlearn_folders_${user.id}`;
       localStorage.setItem(key, JSON.stringify(folders));
+
+      // Asynchronously push to cloud
+      pushUserDecksAndFoldersToCloud(user.id);
+
       return { success: true };
     } catch (e) {
       return { success: false, error: "Lỗi lưu thư mục!" };

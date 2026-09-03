@@ -60,7 +60,7 @@ export default function ForgotPasswordPage() {
     setIsLoading(true);
 
     try {
-      const res = verifyAccountExists(queryIdentity);
+      const res = await verifyAccountExists(queryIdentity);
 
       if (!res.success || !res.user) {
         setIsLoading(false);
@@ -156,7 +156,7 @@ export default function ForgotPasswordPage() {
   };
 
   // STEP 3: Submit New Password
-  const handleResetPassword = (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
 
@@ -172,8 +172,8 @@ export default function ForgotPasswordPage() {
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      const res = resetPassword(identity, newPassword);
+    try {
+      const res = await resetPassword(identity, newPassword);
       setIsLoading(false);
 
       if (res.success) {
@@ -181,12 +181,17 @@ export default function ForgotPasswordPage() {
       } else {
         setErrorMessage(res.error || "Lỗi cập nhật mật khẩu mới!");
       }
-    }, 400);
+    } catch (err) {
+      setIsLoading(false);
+      setErrorMessage("Lỗi cập nhật mật khẩu mới!");
+    }
   };
 
-  const handleDirectLogin = () => {
-    login(identity, newPassword || "123");
-    router.push("/dashboard");
+  const handleDirectLogin = async () => {
+    try {
+      await login(identity, newPassword || "123");
+      router.push("/dashboard");
+    } catch (err) {}
   };
 
   return (

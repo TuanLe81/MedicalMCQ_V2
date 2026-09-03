@@ -33,7 +33,7 @@ export default function RegisterPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
 
@@ -49,8 +49,8 @@ export default function RegisterPage() {
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      const res = register({
+    try {
+      const res = await register({
         name,
         username,
         email,
@@ -65,7 +65,10 @@ export default function RegisterPage() {
       } else {
         setErrorMessage(res.error || "Lỗi đăng ký tài khoản!");
       }
-    }, 400);
+    } catch (err) {
+      setIsLoading(false);
+      setErrorMessage("Lỗi đăng ký tài khoản, vui lòng thử lại!");
+    }
   };
 
   const medicalSchoolsList = [

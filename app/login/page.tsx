@@ -28,31 +28,36 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
     setIsLoading(true);
 
-    setTimeout(() => {
-      const res = login(identity, password);
+    try {
+      const res = await login(identity, password);
       setIsLoading(false);
       if (res.success) {
         router.push("/dashboard");
       } else {
         setErrorMessage(res.error || "Đăng nhập không thành công.");
       }
-    }, 400);
+    } catch (err) {
+      setIsLoading(false);
+      setErrorMessage("Đã xảy ra lỗi đăng nhập, vui lòng thử lại!");
+    }
   };
 
-  const handleQuickLogin = (email: string, pass: string) => {
+  const handleQuickLogin = async (email: string, pass: string) => {
     setIdentity(email);
     setPassword(pass);
     setIsLoading(true);
-    setTimeout(() => {
-      login(email, pass);
+    try {
+      await login(email, pass);
       setIsLoading(false);
       router.push("/dashboard");
-    }, 300);
+    } catch (err) {
+      setIsLoading(false);
+    }
   };
 
   return (
