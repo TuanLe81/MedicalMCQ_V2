@@ -28,14 +28,14 @@ interface ShareItemModalProps {
   onSuccess?: () => void;
 }
 
-export function ShareItemModal({
+export const ShareItemModal: React.FC<ShareItemModalProps> = ({
   isOpen,
   onClose,
   folder,
   deck,
   itemType,
   onSuccess,
-}: ShareItemModalProps) {
+}) => {
   const { user, sendShareRequest } = useAuth();
 
   const [targetUser, setTargetUser] = useState("");
@@ -253,5 +253,6 @@ export function ShareItemModal({
       </div>
     </div>
   );
-}
+};
 
+export default ShareItemModal;
