@@ -1,19 +1,19 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
   "/ai-tutor/page": "app/ai-tutor/page.js",
+  "/flashcards/[deckId]/page": "app/flashcards/[deckId]/page.js",
   "/api/send-otp/route": "app/api/send-otp/route.js",
   "/flashcards/page": "app/flashcards/page.js",
-  "/dashboard/page": "app/dashboard/page.js",
   "/login/page": "app/login/page.js",
-  "/create/page": "app/create/page.js",
   "/folders/page": "app/folders/page.js",
-  "/quiz/page": "app/quiz/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
   "/forgot-password/page": "app/forgot-password/page.js",
   "/register/page": "app/register/page.js",
-  "/flashcards/[deckId]/page": "app/flashcards/[deckId]/page.js",
-  "/api/cloud-sync/share-requests/route": "app/api/cloud-sync/share-requests/route.js",
-  "/quiz/[deckId]/page": "app/quiz/[deckId]/page.js",
+  "/create/page": "app/create/page.js",
   "/page": "app/page.js",
-  "/api/cloud-sync/users/route": "app/api/cloud-sync/users/route.js",
-  "/api/cloud-sync/user-data/route": "app/api/cloud-sync/user-data/route.js"
+  "/quiz/[deckId]/page": "app/quiz/[deckId]/page.js",
+  "/quiz/page": "app/quiz/page.js",
+  "/api/cloud-sync/user-data/route": "app/api/cloud-sync/user-data/route.js",
+  "/api/cloud-sync/share-requests/route": "app/api/cloud-sync/share-requests/route.js",
+  "/api/cloud-sync/users/route": "app/api/cloud-sync/users/route.js"
 }

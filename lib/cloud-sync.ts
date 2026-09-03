@@ -136,7 +136,7 @@ export async function updateGistFiles(filesToUpdate: {
 
     if (Object.keys(filesPayload).length === 0) return true;
 
-    const res = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+    let res = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
       method: "PATCH",
       headers: {
         Authorization: `Bearer ${GITHUB_TOKEN}`,
@@ -147,6 +147,22 @@ export async function updateGistFiles(filesToUpdate: {
       body: JSON.stringify({ files: filesPayload }),
       cache: "no-store",
     });
+
+    // Automatic retry once on transient network glitch or rate throttling
+    if (!res.ok && res.status >= 500) {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      res = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${GITHUB_TOKEN}`,
+          "User-Agent": "MedLearn-App",
+          "Content-Type": "application/json",
+          Accept: "application/vnd.github.v3+json",
+        },
+        body: JSON.stringify({ files: filesPayload }),
+        cache: "no-store",
+      });
+    }
 
     return res.ok;
   } catch (err) {

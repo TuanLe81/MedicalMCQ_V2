@@ -38,23 +38,17 @@ export function FlashcardViewer({ cards: initialCards, deckTitle }: FlashcardVie
     setIsFlipped(false);
   }, [initialCards]);
 
-  if (!cards || cards.length === 0) {
-    return (
-      <div className="text-center p-12 bg-card rounded-3xl border border-border">
-        <p className="text-muted-foreground">Chưa có thẻ Flashcard nào trong bộ đề này.</p>
-      </div>
-    );
-  }
-
-  const currentCard = cards[currentIndex];
+  const currentCard = cards && cards.length > 0 ? cards[currentIndex] : null;
 
   const handleNext = () => {
+    if (!cards || cards.length === 0) return;
     setIsFlipped(false);
     setShowHint(false);
     setCurrentIndex((prev) => (prev + 1) % cards.length);
   };
 
   const handlePrev = () => {
+    if (!cards || cards.length === 0) return;
     setIsFlipped(false);
     setShowHint(false);
     setCurrentIndex((prev) => (prev - 1 + cards.length) % cards.length);
@@ -71,6 +65,7 @@ export function FlashcardViewer({ cards: initialCards, deckTitle }: FlashcardVie
 
   // Fisher-Yates Algorithm for Random Flashcard Shuffling
   const handleShuffle = () => {
+    if (!cards || cards.length === 0) return;
     const shuffled = [...cards];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -91,6 +86,51 @@ export function FlashcardViewer({ cards: initialCards, deckTitle }: FlashcardVie
     setIsFlipped(false);
     setShowHint(false);
   };
+
+  // Keyboard Navigation: Space = Flip, Arrows = Prev/Next, 1/2/3 = Rate, H = Hint
+  useEffect(() => {
+    if (!cards || cards.length === 0) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (["INPUT", "TEXTAREA"].includes((e.target as HTMLElement)?.tagName)) {
+        return;
+      }
+
+      if (e.code === "Space") {
+        e.preventDefault();
+        setIsFlipped((prev) => !prev);
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        handleNext();
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        handlePrev();
+      } else if (e.key === "1") {
+        e.preventDefault();
+        handleRate("HARD");
+      } else if (e.key === "2") {
+        e.preventDefault();
+        handleRate("MEDIUM");
+      } else if (e.key === "3") {
+        e.preventDefault();
+        handleRate("EASY");
+      } else if (e.key.toLowerCase() === "h") {
+        e.preventDefault();
+        setShowHint((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [cards?.length, currentIndex, currentCard]);
+
+  if (!cards || cards.length === 0) {
+    return (
+      <div className="text-center p-12 bg-card rounded-3xl border border-border">
+        <p className="text-muted-foreground">Chưa có thẻ Flashcard nào trong bộ đề này.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center max-w-3xl mx-auto w-full space-y-6">
@@ -257,6 +297,29 @@ export function FlashcardViewer({ cards: initialCards, deckTitle }: FlashcardVie
             Đã Thuộc (7 Ngày)
           </button>
         </div>
+      </div>
+
+      {/* Keyboard Shortcuts Hint Pill Bar */}
+      <div className="hidden sm:flex items-center justify-center gap-3 pt-2 text-[11px] text-muted-foreground/80">
+        <span className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 rounded border border-border bg-muted/60 text-[10px] font-mono font-bold text-foreground">Space</kbd>
+          Lật thẻ
+        </span>
+        <span>•</span>
+        <span className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 rounded border border-border bg-muted/60 text-[10px] font-mono font-bold text-foreground">← / →</kbd>
+          Trước / Sau
+        </span>
+        <span>•</span>
+        <span className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 rounded border border-border bg-muted/60 text-[10px] font-mono font-bold text-foreground">1, 2, 3</kbd>
+          Đánh giá nhớ
+        </span>
+        <span>•</span>
+        <span className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 rounded border border-border bg-muted/60 text-[10px] font-mono font-bold text-foreground">H</kbd>
+          Gợi ý
+        </span>
       </div>
     </div>
   );
