@@ -13,6 +13,7 @@ import {
   FolderTree,
   FileQuestion,
   Play,
+  Pause,
   Trash2,
   Sparkles,
   BookOpen,
@@ -36,6 +37,7 @@ export default function QuizIndexPage() {
   const [deckToDelete, setDeckToDelete] = useState<DeckWithFolder | null>(null);
   const [showDemoLockAlert, setShowDemoLockAlert] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [pausedProgressMap, setPausedProgressMap] = useState<Record<string, { answeredCount: number; totalQuestions: number }>>({});
 
   const isDemoUser = user?.isDemo ?? false;
 
@@ -45,6 +47,27 @@ export default function QuizIndexPage() {
     try {
       const list = getUserDecks("MCQ");
       setDecks(list);
+
+      // Check for any paused progress sessions for these decks
+      if (typeof window !== "undefined") {
+        const map: Record<string, { answeredCount: number; totalQuestions: number }> = {};
+        list.forEach((d) => {
+          const key = `medlearn_quiz_paused_${user?.id || "guest"}_${d.id}`;
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw);
+              if (parsed && parsed.answeredCount !== undefined && parsed.answeredCount > 0) {
+                map[d.id] = {
+                  answeredCount: parsed.answeredCount,
+                  totalQuestions: parsed.totalQuestions || d.itemCount,
+                };
+              }
+            } catch (e) {}
+          }
+        });
+        setPausedProgressMap(map);
+      }
     } catch (e) {
       setDecks([]);
     } finally {
@@ -233,9 +256,18 @@ export default function QuizIndexPage() {
                 <div className="space-y-3">
                   {/* Top Tags */}
                   <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 uppercase tracking-wider">
-                      {deck.specialty}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 uppercase tracking-wider">
+                        {deck.specialty}
+                      </span>
+
+                      {pausedProgressMap[deck.id] && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-800 flex items-center gap-1">
+                          <Pause className="h-3 w-3 text-amber-600" />
+                          <span>Đang làm dở ({pausedProgressMap[deck.id].answeredCount}/{deck.itemCount})</span>
+                        </span>
+                      )}
+                    </div>
 
                     <span className="text-[11px] font-semibold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-900/60 px-2.5 py-0.5 rounded-lg flex items-center gap-1 line-clamp-1 max-w-[200px]">
                       📁 {deck.folderName || "Thư Mục Gốc"}
@@ -274,10 +306,19 @@ export default function QuizIndexPage() {
                   <div className="flex items-center gap-2">
                     <Link
                       href={`/quiz/${deck.id}`}
-                      className="flex-1 py-2.5 px-4 rounded-2xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md shadow-sky-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
+                      className={cn(
+                        "flex-1 py-2.5 px-4 rounded-2xl text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all hover:scale-[1.02]",
+                        pausedProgressMap[deck.id]
+                          ? "bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 shadow-amber-600/20"
+                          : "bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 shadow-sky-600/20"
+                      )}
                     >
                       <Play className="h-3.5 w-3.5 fill-white" />
-                      <span>Luyện Thi Cuộn</span>
+                      <span>
+                        {pausedProgressMap[deck.id]
+                          ? `Tiếp Tục (${pausedProgressMap[deck.id].answeredCount}/${deck.itemCount})`
+                          : "Luyện Thi Cuộn"}
+                      </span>
                       <ArrowRight className="h-3.5 w-3.5" />
                     </Link>
 

@@ -30,8 +30,26 @@ import {
   ChevronUp,
   Layers,
   Lock,
+  Save,
+  LogOut,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+export interface SavedQuizProgress {
+  deckId: string;
+  deckTitle: string;
+  userAnswers: { [index: number]: number };
+  secondsRemaining: number;
+  elapsedSeconds: number;
+  timerMinutes: number;
+  isUnlimitedTime: boolean;
+  isExamMode: boolean;
+  totalQuestions: number;
+  answeredCount: number;
+  savedAt: string;
+  timestamp: number;
+}
 
 export default function QuizPage() {
   const params = useParams();
@@ -58,9 +76,16 @@ export default function QuizPage() {
   const [secondsRemaining, setSecondsRemaining] = useState<number>(15 * 60);
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
 
-  // Pause States
+  // Pause & Progress Persistence States
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [mobilePaletteOpen, setMobilePaletteOpen] = useState<boolean>(false);
+  const [pauseSaveToast, setPauseSaveToast] = useState<boolean>(false);
+  const [savedResumeProgress, setSavedResumeProgress] = useState<SavedQuizProgress | null>(null);
+  const [showResumeModal, setShowResumeModal] = useState<boolean>(false);
+
+  const getProgressStorageKey = (deckId: string, userId?: string) => {
+    return `medlearn_quiz_paused_${userId || "guest"}_${deckId}`;
+  };
 
   // Load user-scoped deck logic
   useEffect(() => {
@@ -84,6 +109,46 @@ export default function QuizPage() {
     }
   }, [params?.deckId, user]);
 
+  // Check if user has a previously paused quiz session for this deck
+  useEffect(() => {
+    if (!params?.deckId) return;
+    try {
+      const key = getProgressStorageKey(params.deckId as string, user?.id);
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        const parsed: SavedQuizProgress = JSON.parse(stored);
+        if (parsed && Object.keys(parsed.userAnswers || {}).length > 0) {
+          setSavedResumeProgress(parsed);
+          setShowResumeModal(true);
+        }
+      }
+    } catch (e) {}
+  }, [params?.deckId, user?.id]);
+
+  // Restore saved quiz progress
+  const handleRestoreProgress = () => {
+    if (!savedResumeProgress) return;
+    setUserAnswers(savedResumeProgress.userAnswers || {});
+    setSecondsRemaining(savedResumeProgress.secondsRemaining ?? timerMinutes * 60);
+    setElapsedSeconds(savedResumeProgress.elapsedSeconds ?? 0);
+    setTimerMinutes(savedResumeProgress.timerMinutes ?? 15);
+    setIsUnlimitedTime(savedResumeProgress.isUnlimitedTime ?? false);
+    setIsExamMode(savedResumeProgress.isExamMode ?? false);
+    setShowResumeModal(false);
+    setIsPaused(false);
+  };
+
+  // Discard saved quiz progress and start fresh
+  const handleDiscardSavedProgress = () => {
+    if (!params?.deckId) return;
+    try {
+      const key = getProgressStorageKey(params.deckId as string, user?.id);
+      localStorage.removeItem(key);
+    } catch (e) {}
+    setSavedResumeProgress(null);
+    setShowResumeModal(false);
+  };
+
   // Timer Tick Effect (Freezes when isPaused is true)
   useEffect(() => {
     if (hasSubmitted || isPaused || isLoadingDeck || questions.length === 0) return;
@@ -106,7 +171,7 @@ export default function QuizPage() {
     return () => clearInterval(interval);
   }, [hasSubmitted, isPaused, isUnlimitedTime, isLoadingDeck, questions.length]);
 
-  // Handle Option Click
+  // Handle Option Click (Strictly NOT auto-saved unless user presses Pause)
   const handleSelectOption = (questionIdx: number, optionIndex: number) => {
     if (isPaused || (hasSubmitted && !isExamMode)) return;
 
@@ -150,16 +215,37 @@ export default function QuizPage() {
     setTimeout(() => setShuffleToast(null), 3000);
   };
 
-  // Toggle Pause State
+  // Toggle Pause State & Save in-progress session strictly on Pause
   const handleTogglePause = () => {
     if (hasSubmitted) return;
 
     if (!isPaused) {
-      // Save current answers to localStorage on pause
+      // FREEZE TIMER & SAVE IN-PROGRESS STATE
+      const key = getProgressStorageKey(params?.deckId as string, user?.id);
+      const answered = Object.keys(userAnswers).length;
+      const progressData: SavedQuizProgress = {
+        deckId: (params?.deckId as string) || "deck_custom",
+        deckTitle,
+        userAnswers,
+        secondsRemaining,
+        elapsedSeconds,
+        timerMinutes,
+        isUnlimitedTime,
+        isExamMode,
+        totalQuestions: questions.length,
+        answeredCount: answered,
+        savedAt: new Date().toLocaleString("vi-VN"),
+        timestamp: Date.now(),
+      };
+
       try {
-        localStorage.setItem(`quiz_temp_answers_${params?.deckId}`, JSON.stringify(userAnswers));
+        localStorage.setItem(key, JSON.stringify(progressData));
+        setSavedResumeProgress(progressData);
       } catch (e) {}
+
       setIsPaused(true);
+      setPauseSaveToast(true);
+      setTimeout(() => setPauseSaveToast(false), 4000);
     } else {
       setIsPaused(false);
     }
@@ -177,6 +263,13 @@ export default function QuizPage() {
   // Submit and Calculate Score + Bloom Matrix + Record to Leaderboard
   const handleSubmitQuiz = () => {
     if (hasSubmitted) return;
+
+    // 1. Clear saved paused progress on official submit (Finishing the quiz)
+    try {
+      const key = getProgressStorageKey(params?.deckId as string, user?.id);
+      localStorage.removeItem(key);
+      setSavedResumeProgress(null);
+    } catch (e) {}
 
     let correct = 0;
     questions.forEach((q, idx) => {
@@ -202,7 +295,7 @@ export default function QuizPage() {
       userAnswers,
     };
 
-    // Update real-time score in Leaderboard & AuthContext
+    // Update real-time score in Leaderboard & AuthContext (Only when submitting)
     recordQuizSubmission(correct, total, bloomMatrix);
 
     setQuizResult(result);
@@ -211,6 +304,13 @@ export default function QuizPage() {
   };
 
   const handleRetake = () => {
+    // Clear any saved progress on retake
+    try {
+      const key = getProgressStorageKey(params?.deckId as string, user?.id);
+      localStorage.removeItem(key);
+      setSavedResumeProgress(null);
+    } catch (e) {}
+
     setUserAnswers({});
     setHasSubmitted(false);
     setQuizResult(null);
@@ -343,29 +443,68 @@ export default function QuizPage() {
               </div>
             </div>
 
+            {/* Pause Save Notification Toast */}
+            {pauseSaveToast && (
+              <div className="p-4 rounded-2xl bg-emerald-600 text-white text-xs font-bold shadow-lg shadow-emerald-600/25 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="h-5 w-5 shrink-0" />
+                  <div>
+                    <div className="font-extrabold text-sm">Đã Lưu Tiến Độ Làm Bài Thành Công!</div>
+                    <div className="text-[11px] text-white/90 font-medium">
+                      Đã lưu {answeredCount}/{questions.length} câu hỏi. Bạn có thể an tâm thoát ra hoặc quay lại làm tiếp bất kỳ lúc nào.
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPauseSaveToast(false)}
+                  className="px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs"
+                >
+                  Đóng
+                </button>
+              </div>
+            )}
+
             {/* PAUSE BANNER */}
             {isPaused && (
-              <div className="p-4 rounded-3xl bg-amber-500/10 border-2 border-amber-500 text-amber-900 dark:text-amber-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in zoom-in-95">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-white font-bold shadow-md">
-                    <Pause className="h-5 w-5" />
+              <div className="p-5 rounded-3xl bg-amber-500/10 border-2 border-amber-500 text-amber-950 dark:text-amber-100 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm animate-in fade-in zoom-in-95">
+                <div className="flex items-start sm:items-center gap-3.5">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-white font-bold shadow-md">
+                    <Pause className="h-6 w-6" />
                   </div>
-                  <div>
-                    <h4 className="font-bold text-sm">Bài Thi Đang Ở Trạng Thái Tạm Dừng</h4>
-                    <p className="text-xs text-muted-foreground">
-                      Thời gian đã đóng băng. Các câu hỏi đã chọn ({answeredCount}/{questions.length}) được lưu an toàn. Thao tác chọn đáp án đang bị khóa.
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-extrabold text-base text-amber-900 dark:text-amber-100">
+                        Bài Thi Đang Tạm Dừng • Tiến Độ Đã Được Lưu
+                      </h4>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200">
+                        {isExamMode ? "Chế độ thi thử" : "Giải thích tức thì"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Thời gian đếm giờ đã đóng băng. Các câu hỏi đã chọn ({answeredCount}/{questions.length} câu) đã được lưu vào bộ nhớ an toàn. Bạn có thể tiếp tục làm ngay hoặc lưu &amp; thoát ra ngoài.
                     </p>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleTogglePause}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all hover:scale-105"
-                >
-                  <Play className="h-4 w-4 fill-white" />
-                  <span>Tiếp Tục Làm Bài</span>
-                </button>
+                <div className="flex items-center gap-2.5 self-end md:self-center shrink-0">
+                  <Link
+                    href="/quiz"
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-2xl border border-amber-300 dark:border-amber-800 bg-background hover:bg-muted text-foreground font-bold text-xs shadow-xs transition-all"
+                  >
+                    <LogOut className="h-4 w-4 text-amber-600" />
+                    <span>Lưu &amp; Thoát Ra Ngoài</span>
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={handleTogglePause}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-amber-600/20 transition-all hover:scale-105"
+                  >
+                    <Play className="h-4 w-4 fill-white" />
+                    <span>Tiếp Tục Làm Bài</span>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -752,6 +891,80 @@ export default function QuizPage() {
                       className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-xs"
                     >
                       Áp Dụng Hẹn Giờ
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL KHÔI PHỤC TIẾN ĐỘ BÀI THI ĐÃ TẠM DỪNG */}
+            {showResumeModal && savedResumeProgress && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in">
+                <div className="w-full max-w-md rounded-3xl border-2 border-sky-500 bg-card p-6 sm:p-7 shadow-2xl space-y-5 animate-in zoom-in-95">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-950 text-sky-600 shadow-inner">
+                      <Clock className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">
+                        Phát hiện tiến độ bài thi
+                      </div>
+                      <h3 className="text-base font-black text-foreground">
+                        Tiếp Tục Bài Thi Đang Làm Dở?
+                      </h3>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-muted/40 border border-border space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground font-semibold">Tên bộ đề:</span>
+                      <span className="font-bold text-foreground truncate max-w-[220px]">{savedResumeProgress.deckTitle}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground font-semibold">Tiến độ đã làm:</span>
+                      <span className="font-bold text-sky-600">
+                        {savedResumeProgress.answeredCount} / {savedResumeProgress.totalQuestions} câu ({savedResumeProgress.totalQuestions > 0 ? Math.round((savedResumeProgress.answeredCount / savedResumeProgress.totalQuestions) * 100) : 0}%)
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground font-semibold">Thời gian còn lại:</span>
+                      <span className="font-mono font-bold text-foreground">
+                        {savedResumeProgress.isUnlimitedTime ? "Thời gian tự do" : formatTime(savedResumeProgress.secondsRemaining)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground font-semibold">Chế độ thi:</span>
+                      <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                        {savedResumeProgress.isExamMode ? "Chế độ thi thử" : "Giải thích tức thì"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-border/60 pt-1.5 text-[11px] text-muted-foreground">
+                      <span>Tạm dừng lúc:</span>
+                      <span>{savedResumeProgress.savedAt}</span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Hệ thống nhận thấy bạn đã từng bấm tạm dừng bài thi này trước đó. Bạn muốn tiếp tục hoàn thành bài làm hay làm lại từ đầu?
+                  </p>
+
+                  <div className="flex flex-col gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleRestoreProgress}
+                      className="w-full py-3 rounded-2xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-sky-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                    >
+                      <Play className="h-4 w-4 fill-white" />
+                      <span>Tiếp Tục Bài Làm ({savedResumeProgress.answeredCount}/{savedResumeProgress.totalQuestions} câu)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDiscardSavedProgress}
+                      className="w-full py-2.5 rounded-2xl border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      <span>Bắt Đầu Lượt Thi Mới (Xóa tiến độ cũ)</span>
                     </button>
                   </div>
                 </div>
