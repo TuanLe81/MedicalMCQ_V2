@@ -34,6 +34,9 @@ import {
   Plus,
   Play,
   RotateCcw,
+  Check,
+  Lightbulb,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -90,6 +93,8 @@ export default function CreateStudioPage() {
   const [parsedFlashcards, setParsedFlashcards] = useState<FlashcardItem[]>([]);
   const [batchTargetDeckTitle, setBatchTargetDeckTitle] = useState("Bộ Đề Y Khoa Mới Import");
   const [parseErrors, setParseErrors] = useState<string[]>([]);
+  const [copyToast, setCopyToast] = useState<string | null>(null);
+  const [batchGuideTab, setBatchGuideTab] = useState<"GUIDE" | "PROMPT">("GUIDE");
 
   // IMPORT SUCCESS MODAL STATE
   const [successModalData, setSuccessModalData] = useState<{
@@ -161,7 +166,8 @@ export default function CreateStudioPage() {
     }
   }, [user]);
 
-  const sampleMCQText = `[Vignette] Bệnh nhân nam 62 tuổi, tiền căn tăng huyết áp và đái tháo đường, nhập viện vì khó thở khi nằm, phù 2 chi dưới, ran ẩm 2 đáy phổi, T3 Gallop ở mỏm tim.
+  // STANDARDIZED TEMPLATES FOR MCQ & FLASHCARD TEXT IMPORT
+  const SAMPLE_MCQ_TEXT = `[Tình huống] Bệnh nhân nam 62 tuổi, tiền căn tăng huyết áp và đái tháo đường, nhập viện vì khó thở khi nằm, phù 2 chi dưới, ran ẩm 2 đáy phổi, T3 Gallop ở mỏm tim.
 Câu hỏi: Dấu hiệu thăm khám lâm sàng nào có độ đặc hiệu cao nhất cho chẩn đoán suy tim sung huyết ở bệnh nhân này?
 A. Tiếng T3 Gallop ở mỏm tim
 B. Ran ẩm ở 2 đáy phổi
@@ -171,7 +177,7 @@ D. Nhịp tim nhanh lúc nghỉ (98 ck/phút)
 Bloom: ANALYZING
 Giải thích: Tiếng T3 Gallop và tĩnh mạch cổ nổi (JVD) có độ đặc hiệu rất cao (> 95%) trong suy tim sung huyết có tăng áp lực làm đầy thất trái.
 ---
-[Vignette] Bệnh nhân nữ 55 tuổi được chẩn đoán HFrEF (EF = 32%), NYHA II.
+[Tình huống] Bệnh nhân nữ 55 tuổi được chẩn đoán HFrEF (EF = 32%), NYHA II.
 Câu hỏi: Thuốc nào sau đây thuộc nhóm ức chế SGLT2 được chứng minh giảm tử vong do tim mạch kể cả khi KHÔNG mắc đái tháo đường?
 A. Empagliflozin và Dapagliflozin
 B. Metformin và Pioglitazone
@@ -181,9 +187,56 @@ D. Sitagliptin và Vildagliptin
 Bloom: REMEMBERING
 Giải thích: Empagliflozin (EMPEROR) và Dapagliflozin (DAPA-HF) là 2 thuốc SGLT2i trụ cột điều trị suy tim được FDA phê duyệt.`;
 
-  const sampleFlashcardText = `Tam chứng Charcot trong nhiễm trùng đường mật | 1. Đau hạ sườn phải\n2. Sốt (kèm lạnh run)\n3. Vàng da - Vàng mắt | Đau - Sốt - Vàng | REMEMBERING
-Ngũ chứng Reynolds trong viêm đường mật hoại tử | Tam chứng Charcot + Tụt huyết áp (Shock) + Rối loạn tri giác | Shock + Tri giác | ANALYZING
-Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuyển thành NO -> kích hoạt Guanylyl cyclase -> tăng cGMP -> giãn hệ tĩnh mạch -> giảm tiền tải | Giảm tiền tải qua NO / cGMP | UNDERSTANDING`;
+  const SAMPLE_FLASHCARD_BLOCK_TEXT = `Mặt trước: Tam chứng Charcot trong nhiễm trùng đường mật cấp
+Mặt sau: 1. Đau hạ sườn phải
+2. Sốt (kèm lạnh run)
+3. Vàng da - Vàng mắt
+Gợi ý: Đau - Sốt - Vàng
+Bloom: REMEMBERING
+---
+Mặt trước: Ngũ chứng Reynolds trong viêm đường mật hoại tử
+Mặt sau: Tam chứng Charcot + Tụt huyết áp (Shock) + Rối loạn tri giác
+Gợi ý: Shock + Tri giác
+Bloom: ANALYZING
+---
+Mặt trước: Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực
+Mặt sau: Chuyển thành NO -> kích hoạt Guanylyl cyclase -> tăng cGMP -> giãn hệ tĩnh mạch -> giảm tiền tải
+Gợi ý: Giảm tiền tải qua NO / cGMP
+Bloom: UNDERSTANDING`;
+
+  const SAMPLE_FLASHCARD_PIPE_TEXT = `Tam chứng Charcot trong nhiễm trùng đường mật | 1. Đau hạ sườn phải | Đau - Sốt - Vàng | REMEMBERING
+Ngũ chứng Reynolds trong viêm đường mật hoại tử | Tam chứng Charcot + Tụt huyết áp + Tri giác | Shock + Tri giác | ANALYZING
+Cơ chế tác dụng của Nitroglycerin | Giãn hệ tĩnh mạch, giảm tiền tải qua NO / cGMP | Giảm tiền tải | UNDERSTANDING`;
+
+  // STANDARDIZED AI PROMPTS FOR 1-CLICK COPY
+  const MCQ_AI_PROMPT_TEMPLATE = `Bạn là một Giảng viên Y khoa và Chuyên gia Soạn thảo Đề thi Đại học Y Dược.
+Hãy biên soạn giúp tôi [SỐ_LƯỢNG_CÂU, ví dụ: 5] câu hỏi trắc nghiệm MCQ về chủ đề: "[CHỦ_ĐỀ_HOẶC_BÀI_HỌC_CỦA_BẠN]" theo chuẩn 6 bậc tư duy Bloom (Nhớ, Hiểu, Vận dụng, Phân tích, Đánh giá, Sáng tạo).
+
+QUAN TRỌNG: Hãy xuất kết quả theo ĐÚNG định dạng văn bản chuẩn hóa sau đây (không thêm bất kỳ lời chào hay giải thích ngoài lề) để tôi có thể dán hàng loạt trực tiếp vào hệ thống y khoa MediMind:
+
+[Tình huống] (Tùy chọn: Bệnh cảnh lâm sàng chi tiết nếu có)
+Câu hỏi: (Nội dung câu hỏi rõ ràng)
+A. (Phương án A)
+B. (Phương án B)
+C. (Phương án C)
+D. (Phương án D)
+Đáp án: (Điền chữ cái A, B, C hoặc D)
+Bloom: (Chọn 1 trong các mức: REMEMBERING, UNDERSTANDING, APPLYING, ANALYZING, EVALUATING, CREATING)
+Giải thích: (Giải thích cơ chế bệnh học, tại sao đáp án này đúng và các phương án khác sai theo Guideline cập nhật)
+---
+(Tiếp tục câu hỏi tiếp theo và ngăn cách các câu bằng 3 dấu gạch ngang ---)`;
+
+  const FLASHCARD_AI_PROMPT_TEMPLATE = `Bạn là một Giảng viên Y khoa và Chuyên gia Học tập Spaced Repetition.
+Hãy tạo giúp tôi [SỐ_LƯỢNG_THẺ, ví dụ: 10] thẻ ghi nhớ Flashcard y khoa về chủ đề: "[CHỦ_ĐỀ_HOẶC_BÀI_HỌC_CỦA_BẠN]" để sinh viên ôn tập theo chuẩn Thang đo Bloom.
+
+QUAN TRỌNG: Hãy xuất kết quả theo ĐÚNG định dạng văn bản chuẩn hóa sau đây (không thêm bất kỳ lời chào hay giải thích ngoài lề) để tôi có thể dán hàng loạt trực tiếp vào hệ thống y khoa MediMind:
+
+Mặt trước: (Thuật ngữ, triệu chứng, cơ chế tác dụng hoặc ca bệnh ngắn)
+Mặt sau: (Định nghĩa, cơ chế bệnh sinh, phác đồ điều trị hoặc chẩn đoán xác định)
+Gợi ý: (Từ khóa ngắn gợi nhớ, mnemonic lâm sàng)
+Bloom: (Chọn 1 trong các mức: REMEMBERING, UNDERSTANDING, APPLYING, ANALYZING, EVALUATING, CREATING)
+---
+(Tiếp tục thẻ tiếp theo và ngăn cách các thẻ bằng 3 dấu gạch ngang ---)`;
 
   // Get active final specialty
   const getEffectiveSpecialty = () => {
@@ -286,12 +339,35 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
     }, 1200);
   };
 
-  // Parse Raw Text/JSON
+  // 1-Click Copy AI Prompt
+  const handleCopyAiPrompt = (type: "MCQ" | "FLASHCARD") => {
+    const text = type === "MCQ" ? MCQ_AI_PROMPT_TEMPLATE : FLASHCARD_AI_PROMPT_TEMPLATE;
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopyToast(`Đã sao chép prompt chuẩn cho AI (${type === "MCQ" ? "Trắc nghiệm MCQ" : "Thẻ Flashcard"})! Hãy dán vào ChatGPT / Gemini / Claude.`);
+      setTimeout(() => setCopyToast(null), 4500);
+    }
+  };
+
+  // Quick Paste Sample Text
+  const handlePasteSample = (type: "MCQ" | "FLASHCARD") => {
+    setBatchType(type);
+    if (type === "MCQ") {
+      setBatchRawInput(SAMPLE_MCQ_TEXT);
+      setBatchTargetDeckTitle("Bộ Đề Trắc Nghiệm Tim Mạch Mẫu");
+    } else {
+      setBatchRawInput(SAMPLE_FLASHCARD_BLOCK_TEXT);
+      setBatchTargetDeckTitle("Bộ Thẻ Flashcard Bệnh Học Mẫu");
+    }
+    setParseErrors([]);
+  };
+
+  // Robust Text & JSON Parser for MCQ & Flashcard
   const handleParseRawInput = () => {
     setParseErrors([]);
     const raw = batchRawInput.trim();
     if (!raw) {
-      setParseErrors(["Vui lòng dán nội dung văn bản câu hỏi trước khi phân tích!"]);
+      setParseErrors(["Vui lòng dán nội dung văn bản câu hỏi hoặc thẻ ghi nhớ trước khi bấm phân tích!"]);
       return;
     }
 
@@ -314,38 +390,61 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
             }));
             setParsedMCQs(formatted);
           } else {
-            setParseErrors(["Dữ liệu JSON MCQ phải là một mảng []"]);
+            setParseErrors(["Dữ liệu JSON MCQ phải là một mảng mảng []"]);
           }
         } catch (e) {
           setParseErrors(["Lỗi cú pháp JSON. Vui lòng kiểm tra lại cấu trúc."]);
         }
       } else {
-        const chunks = raw.split(/---+|\n\s*\n\s*\n/).map((c) => c.trim()).filter(Boolean);
+        // Text format: split chunks by --- or === or ___ or triple blank lines
+        const chunks = raw.split(/(?:\r?\n\s*){0,2}(?:---+|===+|___+)(?:\s*\r?\n){1,2}|\n\s*\n\s*\n/).map((c) => c.trim()).filter(Boolean);
         const result: MCQQuestion[] = [];
         const errors: string[] = [];
 
         chunks.forEach((chunk, chunkIdx) => {
-          const lines = chunk.split("\n").map((l) => l.trim()).filter(Boolean);
+          const rawLines = chunk.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
           let vignetteStr = "";
           let qText = "";
           let opts: string[] = [];
           let correctIdx = 0;
           let bloom: BloomLevel = "REMEMBERING";
           let exp = "";
+          let inExplanation = false;
 
-          lines.forEach((line) => {
-            if (line.startsWith("[Vignette]") || line.startsWith("[Tình huống]")) {
-              vignetteStr = line.replace(/\[(Vignette|Tình huống)\]/i, "").trim();
-            } else if (line.match(/^Câu hỏi[:.]|^Question[:.]/i)) {
-              qText = line.replace(/^Câu hỏi[:.]|^Question[:.]/i, "").trim();
-            } else if (line.match(/^[A-Ea-e][\.\:\)]\s*/)) {
-              opts.push(line.replace(/^[A-Ea-e][\.\:\)]\s*/, "").trim());
-            } else if (line.match(/^Đáp án[:.]|^Answer[:.]/i)) {
-              const ansLetter = line.replace(/^Đáp án[:.]|^Answer[:.]/i, "").trim().toUpperCase();
-              const map: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, E: 4 };
-              correctIdx = map[ansLetter[0]] ?? 0;
-            } else if (line.match(/^Bloom[:.]/i)) {
-              const bStr = line.replace(/^Bloom[:.]/i, "").trim().toUpperCase();
+          rawLines.forEach((line) => {
+            // Strip markdown bold **text** or __text__ from header markers
+            const clean = line.replace(/^\*\*([^*]+)\*\*/, "$1").replace(/^__([^_]+)__/, "$1").trim();
+
+            // Vignette
+            if (clean.match(/^(\[?(Tình huống|Vignette|Bệnh cảnh|Ca bệnh)\]?[:.]?)/i)) {
+              vignetteStr = clean.replace(/^(\[?(Tình huống|Vignette|Bệnh cảnh|Ca bệnh)\]?[:.]?)\s*/i, "").trim();
+              inExplanation = false;
+            }
+            // Question Text
+            else if (clean.match(/^(Câu hỏi|Câu \d+|Question \d*|\d+[\.:\)])[:.]?/i)) {
+              qText = clean.replace(/^(Câu hỏi|Câu \d+|Question \d*|\d+[\.:\)])[:.]?\s*/i, "").trim();
+              inExplanation = false;
+            }
+            // Options: A., B., C., D. or A), (A), A-
+            else if (clean.match(/^(\(?[A-Ea-e]\)?[\.\:\-\/]|Option\s*[A-Ea-e][:.]?)\s*/i)) {
+              const optContent = clean.replace(/^(\(?[A-Ea-e]\)?[\.\:\-\/]|Option\s*[A-Ea-e][:.]?)\s*/i, "").trim();
+              opts.push(optContent);
+              inExplanation = false;
+            }
+            // Answer: Đáp án: A or Key: A
+            else if (clean.match(/^(Đáp án đúng|Đáp án|Key|Answer|ĐA)[:.]?/i)) {
+              const ansRaw = clean.replace(/^(Đáp án đúng|Đáp án|Key|Answer|ĐA)[:.]?\s*/i, "").trim().toUpperCase();
+              const firstLetterMatch = ansRaw.match(/[A-E]/);
+              if (firstLetterMatch) {
+                const letter = firstLetterMatch[0];
+                const map: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, E: 4 };
+                correctIdx = map[letter] ?? 0;
+              }
+              inExplanation = false;
+            }
+            // Bloom level
+            else if (clean.match(/^(Bloom|Bậc Bloom|Mức độ Bloom|Mức độ|Cấp độ|Level)[:.]?/i)) {
+              const bStr = clean.replace(/^(Bloom|Bậc Bloom|Mức độ Bloom|Mức độ|Cấp độ|Level)[:.]?\s*/i, "").trim().toUpperCase();
               if (bloomKeys.includes(bStr as BloomLevel)) {
                 bloom = bStr as BloomLevel;
               } else if (bStr.includes("NHỚ") || bStr.includes("REMEMBER")) bloom = "REMEMBERING";
@@ -354,23 +453,35 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
               else if (bStr.includes("PHÂN TÍCH") || bStr.includes("ANALYZE")) bloom = "ANALYZING";
               else if (bStr.includes("ĐÁNH GIÁ") || bStr.includes("EVALUATE")) bloom = "EVALUATING";
               else if (bStr.includes("SÁNG TẠO") || bStr.includes("CREATE")) bloom = "CREATING";
-            } else if (line.match(/^Giải thích[:.]/i) || line.match(/^Rationale[:.]/i)) {
-              exp = line.replace(/^Giải thích[:.]|^Rationale[:.]/i, "").trim();
-            } else if (!qText && !line.startsWith("[")) {
-              qText = line;
-            } else if (exp) {
-              exp += " " + line;
+              inExplanation = false;
+            }
+            // Explanation
+            else if (clean.match(/^(Giải thích chi tiết|Giải thích|Hướng dẫn giải|Rationale|Cơ chế|Lời giải)[:.]?/i)) {
+              exp = clean.replace(/^(Giải thích chi tiết|Giải thích|Hướng dẫn giải|Rationale|Cơ chế|Lời giải)[:.]?\s*/i, "").trim();
+              inExplanation = true;
+            }
+            // Continuation lines
+            else {
+              if (inExplanation) {
+                exp += (exp ? " " : "") + clean;
+              } else if (!qText && !clean.startsWith("[")) {
+                qText = clean;
+              } else if (qText && opts.length === 0) {
+                qText += " " + clean;
+              }
             }
           });
 
           if (!qText && opts.length === 0) {
-            errors.push(`Khối câu hỏi số ${chunkIdx + 1} không tìm thấy nội dung câu hỏi hợp lệ.`);
+            errors.push(`Khối câu hỏi số ${chunkIdx + 1} thiếu nội dung câu hỏi hoặc phương án trả lời.`);
+          } else if (opts.length < 2) {
+            errors.push(`Khối câu hỏi số ${chunkIdx + 1} ("${(qText || "Câu hỏi").slice(0, 35)}...") cần ít nhất 2 phương án lựa chọn (A, B...).`);
           } else {
             result.push({
               id: `mcq_txt_${Date.now()}_${chunkIdx}`,
               clinicalVignette: vignetteStr,
               questionText: qText || `Câu hỏi lâm sàng số ${chunkIdx + 1}`,
-              options: opts.length >= 2 ? opts : ["Lựa chọn A", "Lựa chọn B", "Lựa chọn C", "Lựa chọn D"],
+              options: opts.length >= 2 ? opts : ["Phương án A", "Phương án B", "Phương án C", "Phương án D"],
               correctIndex: correctIdx,
               bloomLevel: bloom,
               difficulty: "MEDIUM",
@@ -383,6 +494,7 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
         setParseErrors(errors);
       }
     } else {
+      // FLASHCARD BATCH IMPORT
       if (batchFormat === "JSON") {
         try {
           const parsed = JSON.parse(raw);
@@ -403,31 +515,100 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
           setParseErrors(["Lỗi cú pháp JSON. Vui lòng kiểm tra lại cấu trúc."]);
         }
       } else {
-        const lines = raw.split("\n").map((l) => l.trim()).filter(Boolean);
+        const hasPipe = raw.includes("|") && raw.split(/\r?\n/).some((l) => l.includes("|"));
         const result: FlashcardItem[] = [];
+        const errors: string[] = [];
 
-        lines.forEach((line, idx) => {
-          const parts = line.split("|").map((p) => p.trim());
-          if (parts.length >= 2) {
-            const front = parts[0];
-            const back = parts[1];
-            const hint = parts[2] || "";
-            const bloomStr = (parts[3] || "REMEMBERING").toUpperCase();
-            let bLevel: BloomLevel = "REMEMBERING";
-            if (bloomKeys.includes(bloomStr as BloomLevel)) bLevel = bloomStr as BloomLevel;
+        if (!hasPipe) {
+          // Block format: split by --- or === or triple blank lines
+          const chunks = raw.split(/(?:\r?\n\s*){0,2}(?:---+|===+|___+)(?:\s*\r?\n){1,2}|\n\s*\n\s*\n/).map((c) => c.trim()).filter(Boolean);
 
-            result.push({
-              id: `fc_txt_${Date.now()}_${idx}`,
-              front,
-              back,
-              hint,
-              bloomLevel: bLevel,
-              specialty: spec,
+          chunks.forEach((chunk, chunkIdx) => {
+            const rawLines = chunk.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+            let front = "";
+            let back = "";
+            let hint = "";
+            let bloom: BloomLevel = "REMEMBERING";
+            let currentField: "FRONT" | "BACK" | "HINT" | null = null;
+
+            rawLines.forEach((line) => {
+              const clean = line.replace(/^\*\*([^*]+)\*\*/, "$1").replace(/^__([^_]+)__/, "$1").trim();
+
+              if (clean.match(/^(Mặt trước|Mặt 1|Front|Term|Thuật ngữ|Câu hỏi)[:.]?/i)) {
+                front = clean.replace(/^(Mặt trước|Mặt 1|Front|Term|Thuật ngữ|Câu hỏi)[:.]?\s*/i, "").trim();
+                currentField = "FRONT";
+              } else if (clean.match(/^(Mặt sau|Mặt 2|Back|Definition|Định nghĩa|Cơ chế|Đáp án)[:.]?/i)) {
+                back = clean.replace(/^(Mặt sau|Mặt 2|Back|Definition|Định nghĩa|Cơ chế|Đáp án)[:.]?\s*/i, "").trim();
+                currentField = "BACK";
+              } else if (clean.match(/^(Gợi ý|Hint|Mẹo lâm sàng|Mẹo)[:.]?/i)) {
+                hint = clean.replace(/^(Gợi ý|Hint|Mẹo lâm sàng|Mẹo)[:.]?\s*/i, "").trim();
+                currentField = "HINT";
+              } else if (clean.match(/^(Bloom|Bậc Bloom|Mức độ|Level)[:.]?/i)) {
+                const bStr = clean.replace(/^(Bloom|Bậc Bloom|Mức độ|Level)[:.]?\s*/i, "").trim().toUpperCase();
+                if (bloomKeys.includes(bStr as BloomLevel)) {
+                  bloom = bStr as BloomLevel;
+                } else if (bStr.includes("NHỚ") || bStr.includes("REMEMBER")) bloom = "REMEMBERING";
+                else if (bStr.includes("HIỂU") || bStr.includes("UNDERSTAND")) bloom = "UNDERSTANDING";
+                else if (bStr.includes("VẬN DỤNG") || bStr.includes("APPLY")) bloom = "APPLYING";
+                else if (bStr.includes("PHÂN TÍCH") || bStr.includes("ANALYZE")) bloom = "ANALYZING";
+                else if (bStr.includes("ĐÁNH GIÁ") || bStr.includes("EVALUATE")) bloom = "EVALUATING";
+                else if (bStr.includes("SÁNG TẠO") || bStr.includes("CREATE")) bloom = "CREATING";
+                currentField = null;
+              } else {
+                if (currentField === "FRONT") front += (front ? " " : "") + clean;
+                else if (currentField === "BACK") back += (back ? " " : "") + clean;
+                else if (currentField === "HINT") hint += (hint ? " " : "") + clean;
+              }
             });
-          }
-        });
+
+            if (!front || !back) {
+              errors.push(`Thẻ số ${chunkIdx + 1} thiếu trường "Mặt trước:" hoặc "Mặt sau:".`);
+            } else {
+              result.push({
+                id: `fc_txt_${Date.now()}_${chunkIdx}`,
+                front,
+                back,
+                hint,
+                bloomLevel: bloom,
+                specialty: spec,
+              });
+            }
+          });
+        } else {
+          // Pipe format: line by line
+          const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+          lines.forEach((line, idx) => {
+            if (!line.includes("|")) return;
+            const parts = line.split("|").map((p) => p.trim());
+            if (parts.length >= 2) {
+              const front = parts[0];
+              const back = parts[1];
+              const hint = parts[2] || "";
+              const bloomStr = (parts[3] || "REMEMBERING").toUpperCase();
+              let bLevel: BloomLevel = "REMEMBERING";
+              if (bloomKeys.includes(bloomStr as BloomLevel)) {
+                bLevel = bloomStr as BloomLevel;
+              } else if (bloomStr.includes("NHỚ")) bLevel = "REMEMBERING";
+              else if (bloomStr.includes("HIỂU")) bLevel = "UNDERSTANDING";
+              else if (bloomStr.includes("VẬN DỤNG")) bLevel = "APPLYING";
+              else if (bloomStr.includes("PHÂN TÍCH")) bLevel = "ANALYZING";
+
+              result.push({
+                id: `fc_pipe_${Date.now()}_${idx}`,
+                front,
+                back,
+                hint,
+                bloomLevel: bLevel,
+                specialty: spec,
+              });
+            } else {
+              errors.push(`Dòng số ${idx + 1} không đủ 2 cột (Mặt trước | Mặt sau).`);
+            }
+          });
+        }
 
         setParsedFlashcards(result);
+        setParseErrors(errors);
       }
     }
   };
@@ -796,70 +977,256 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
           </div>
         )}
 
-        {/* TAB 2: BATCH IMPORT */}
+        {/* TAB 2: BATCH IMPORT (MCQ & FLASHCARD STANDARDIZED) */}
         {activeTab === "BATCH" && (
-          <div className="space-y-6">
+          <div className="space-y-6 animate-in fade-in duration-200">
+            {/* 1. SEPARATED SEGMENTED CONTROL: MCQ vs FLASHCARD */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-2 rounded-2xl bg-muted/60 border border-border">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBatchType("MCQ");
+                    setBatchTargetDeckTitle("Bộ Đề Trắc Nghiệm Y Khoa Mới");
+                    setParseErrors([]);
+                  }}
+                  className={cn(
+                    "flex-1 sm:flex-initial px-5 py-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all",
+                    batchType === "MCQ"
+                      ? "bg-sky-600 text-white shadow-md shadow-sky-600/25 scale-[1.02]"
+                      : "text-muted-foreground hover:text-foreground hover:bg-background/80"
+                  )}
+                >
+                  <FileText className="h-4 w-4" />
+                  <span>📝 Import Trắc Nghiệm MCQ Hàng Loạt</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBatchType("FLASHCARD");
+                    setBatchTargetDeckTitle("Bộ Thẻ Flashcard Bệnh Học Mới");
+                    setParseErrors([]);
+                  }}
+                  className={cn(
+                    "flex-1 sm:flex-initial px-5 py-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all",
+                    batchType === "FLASHCARD"
+                      ? "bg-purple-600 text-white shadow-md shadow-purple-600/25 scale-[1.02]"
+                      : "text-muted-foreground hover:text-foreground hover:bg-background/80"
+                  )}
+                >
+                  <Layers className="h-4 w-4" />
+                  <span>🎴 Import Thẻ Ghi Nhớ Flashcard Hàng Loạt</span>
+                </button>
+              </div>
+
+              {/* Quick Sample Loader */}
+              <div className="flex items-center gap-2 self-end sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => handlePasteSample(batchType)}
+                  className="px-3.5 py-2 rounded-xl border border-border bg-background hover:bg-muted/80 text-xs font-bold text-foreground flex items-center gap-1.5 shadow-2xs transition-all"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                  <span>Dán Mẫu {batchType === "MCQ" ? "MCQ" : "Flashcard"}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Copy Notification Toast */}
+            {copyToast && (
+              <div className="p-3.5 rounded-2xl bg-emerald-600 text-white text-xs font-bold flex items-center justify-between gap-3 shadow-lg shadow-emerald-600/20 animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-center gap-2">
+                  <Check className="h-4 w-4" />
+                  <span>{copyToast}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCopyToast(null)}
+                  className="text-white/80 hover:text-white text-xs underline"
+                >
+                  Đóng
+                </button>
+              </div>
+            )}
+
+            {/* 2. STANDARDIZATION & AI PROMPT ACCORDION / TABS */}
+            <div className="p-5 sm:p-6 rounded-3xl border border-sky-200 dark:border-sky-900/60 bg-gradient-to-br from-sky-500/5 via-card to-indigo-500/5 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                  <span className="font-bold text-xs uppercase tracking-wider text-foreground">
+                    CHUẨN HÓA ĐỊNH DẠNG &amp; PROMPT CHO AI ({batchType === "MCQ" ? "TRẮC NGHIỆM MCQ" : "THẺ FLASHCARD"})
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-xl border border-border">
+                  <button
+                    type="button"
+                    onClick={() => setBatchGuideTab("GUIDE")}
+                    className={cn(
+                      "px-3 py-1 rounded-lg text-xs font-bold transition-all",
+                      batchGuideTab === "GUIDE"
+                        ? "bg-background text-foreground shadow-2xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    📐 Cú Pháp Chuẩn Hóa
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBatchGuideTab("PROMPT")}
+                    className={cn(
+                      "px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1",
+                      batchGuideTab === "PROMPT"
+                        ? "bg-background text-indigo-600 dark:text-indigo-400 shadow-2xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Bot className="h-3.5 w-3.5" />
+                    <span>Prompt Gửi Cho AI</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* View 1: Syntax Guide */}
+              {batchGuideTab === "GUIDE" && (
+                <div className="space-y-3 animate-in fade-in">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Hệ thống tự động nhận diện thông minh các từ khóa tiếng Việt và tiếng Anh, không phân biệt chữ hoa/thường, tự động loại bỏ ký hiệu markdown bold.
+                  </p>
+
+                  {batchType === "MCQ" ? (
+                    <div className="p-4 rounded-2xl bg-background border border-border font-mono text-[11px] sm:text-xs text-foreground space-y-1.5 overflow-x-auto leading-relaxed">
+                      <div className="text-muted-foreground">// Mẫu cú pháp chuẩn cho mỗi câu MCQ (phân cách các câu bằng ---)</div>
+                      <div className="text-sky-600 font-bold">[Tình huống] Bệnh nhân nam 62 tuổi vào viện vì khó thở... (tùy chọn)</div>
+                      <div className="text-foreground font-bold">Câu hỏi: Dấu hiệu nào có độ đặc hiệu cao nhất cho chẩn đoán suy tim?</div>
+                      <div className="text-emerald-700 dark:text-emerald-400">A. Tiếng T3 Gallop ở mỏm tim</div>
+                      <div className="text-muted-foreground">B. Ran ẩm ở 2 đáy phổi</div>
+                      <div className="text-muted-foreground">C. Phù ấn lõm hai chi dưới đối xứng</div>
+                      <div className="text-muted-foreground">D. Nhịp tim nhanh lúc nghỉ (98 ck/phút)</div>
+                      <div className="text-amber-600 dark:text-amber-400 font-bold">Đáp án: A <span className="text-[10px] text-muted-foreground font-normal">(hỗ trợ điền A, B, C, D)</span></div>
+                      <div className="text-purple-600 dark:text-purple-400 font-bold">Bloom: ANALYZING <span className="text-[10px] text-muted-foreground font-normal">(REMEMBERING, UNDERSTANDING, APPLYING, ANALYZING, EVALUATING, CREATING hoặc Nhớ, Hiểu, Vận dụng, Phân tích...)</span></div>
+                      <div className="text-blue-600 dark:text-blue-400">Giải thích: Tiếng T3 Gallop và JVD có độ đặc hiệu &gt; 95% theo Guideline ESC...</div>
+                      <div className="text-muted-foreground font-bold">---</div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="p-4 rounded-2xl bg-background border border-border font-mono text-[11px] sm:text-xs text-foreground space-y-1.5 overflow-x-auto leading-relaxed">
+                        <div className="text-muted-foreground">// Cách 1: Định dạng theo khối thẻ (Khuyên dùng - Dễ đọc nhất cho cả người và AI)</div>
+                        <div className="text-purple-600 font-bold">Mặt trước: Tam chứng Charcot trong nhiễm trùng đường mật cấp</div>
+                        <div className="text-emerald-700 dark:text-emerald-400 font-bold">Mặt sau: 1. Đau hạ sườn phải - 2. Sốt rét run - 3. Vàng da vàng mắt</div>
+                        <div className="text-amber-600 dark:text-amber-400">Gợi ý: Đau - Sốt - Vàng (tùy chọn)</div>
+                        <div className="text-blue-600 dark:text-blue-400">Bloom: REMEMBERING (tùy chọn)</div>
+                        <div className="text-muted-foreground font-bold">---</div>
+                      </div>
+
+                      <div className="p-3.5 rounded-2xl bg-muted/30 border border-border font-mono text-[11px] text-foreground space-y-1 overflow-x-auto">
+                        <div className="text-muted-foreground">// Cách 2: Định dạng 1 dòng dùng dấu gạch đứng ( | )</div>
+                        <div>Mặt trước | Mặt sau | Gợi ý (tùy chọn) | Bloom (tùy chọn)</div>
+                        <div className="text-muted-foreground italic">VD: Tam chứng Charcot | 1. Đau HSP 2. Sốt 3. Vàng da | Đau-Sốt-Vàng | REMEMBERING</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* View 2: Ready AI Prompt for ChatGPT / Gemini / Claude */}
+              {batchGuideTab === "PROMPT" && (
+                <div className="space-y-3 animate-in fade-in">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      Bấm nút bên dưới để copy prompt chuẩn, dán vào <strong>ChatGPT, Claude, hoặc Google Gemini</strong> để AI tự động xuất câu hỏi đúng 100% cú pháp.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyAiPrompt(batchType)}
+                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs flex items-center gap-1.5 shrink-0 transition-all hover:scale-105"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      <span>📋 Sao Chép Prompt Cho AI</span>
+                    </button>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-background border border-indigo-200 dark:border-indigo-900 font-mono text-[11px] text-muted-foreground max-h-48 overflow-y-auto whitespace-pre-wrap leading-relaxed">
+                    {batchType === "MCQ" ? MCQ_AI_PROMPT_TEMPLATE : FLASHCARD_AI_PROMPT_TEMPLATE}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 3. BATCH INPUT WORKSPACE */}
             <div className="p-6 sm:p-7 rounded-3xl border border-border bg-card shadow-sm space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
-                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-sm">
-                  <UploadCloud className="h-5 w-5" />
-                  <span>KHUNG DÁN VĂN BẢN IMPORT HÀNG LOẠT</span>
+                <div className="flex items-center gap-2 text-foreground font-bold text-sm">
+                  <UploadCloud className="h-5 w-5 text-sky-600" />
+                  <span>
+                    KHUNG DÁN VĂN BẢN IMPORT {batchType === "MCQ" ? "TRẮC NGHIỆM MCQ" : "THẺ FLASHCARD"}
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setBatchType("MCQ");
-                      setBatchRawInput(sampleMCQText);
-                    }}
-                    className="px-3 py-1.5 rounded-xl border border-border bg-muted/60 text-xs font-semibold hover:bg-muted"
+                    onClick={() => handleCopyAiPrompt(batchType)}
+                    className="px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-xs font-bold hover:bg-indigo-100 flex items-center gap-1.5 transition-all"
                   >
-                    Dán Mẫu MCQ Chuẩn
+                    <Copy className="h-3.5 w-3.5" />
+                    <span>Copy Prompt AI</span>
                   </button>
+
                   <button
                     type="button"
-                    onClick={() => {
-                      setBatchType("FLASHCARD");
-                      setBatchRawInput(sampleFlashcardText);
-                    }}
+                    onClick={() => handlePasteSample(batchType)}
                     className="px-3 py-1.5 rounded-xl border border-border bg-muted/60 text-xs font-semibold hover:bg-muted"
                   >
-                    Dán Mẫu Flashcard
+                    Dán Mẫu Thử
                   </button>
                 </div>
               </div>
 
+              {/* Target Deck Title */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Tên Bộ Đề Sẽ Tạo *
+                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                  <span>Tên Bộ Đề Sẽ Tạo *</span>
+                  <span className="text-[10px] text-muted-foreground">Sẽ hiển thị trong Phòng luyện &amp; Cây thư mục</span>
                 </label>
                 <input
                   type="text"
+                  required
                   value={batchTargetDeckTitle}
                   onChange={(e) => setBatchTargetDeckTitle(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-2xl border border-border bg-background text-sm font-semibold text-foreground focus:ring-2 focus:ring-emerald-500/50 outline-none"
+                  className="w-full px-4 py-2.5 rounded-2xl border border-border bg-background text-sm font-semibold text-foreground focus:ring-2 focus:ring-sky-500/50 outline-none"
                 />
               </div>
 
+              {/* Main Paste Textarea */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Dán Nội Dung Từ Word / PDF / Tài Liệu Vào Đây *
-                </label>
+                <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  <span>Dán Nội Dung Từ AI / Word / PDF / Tài Liệu Vào Đây *</span>
+                  <span className="text-[10px] font-normal text-muted-foreground">
+                    {batchRawInput.length > 0 ? `${batchRawInput.split("\n").length} dòng • ${batchRawInput.length} ký tự` : "Chưa có dữ liệu"}
+                  </span>
+                </div>
                 <textarea
-                  rows={8}
+                  rows={9}
                   value={batchRawInput}
                   onChange={(e) => setBatchRawInput(e.target.value)}
-                  placeholder="Dán nội dung câu hỏi trắc nghiệm hoặc flashcard..."
-                  className="w-full p-4 rounded-2xl border border-border bg-background font-mono text-xs text-foreground focus:ring-2 focus:ring-emerald-500/50 outline-none"
+                  placeholder={
+                    batchType === "MCQ"
+                      ? "Dán danh sách câu hỏi trắc nghiệm vào đây...\n\n[Tình huống] ...\nCâu hỏi: ...\nA. ...\nB. ...\nC. ...\nD. ...\nĐáp án: A\nBloom: ANALYZING\nGiải thích: ...\n---"
+                      : "Dán danh sách thẻ ghi nhớ vào đây...\n\nMặt trước: ...\nMặt sau: ...\nGợi ý: ...\nBloom: REMEMBERING\n---"
+                  }
+                  className="w-full p-4 rounded-2xl border border-border bg-background font-mono text-xs text-foreground focus:ring-2 focus:ring-sky-500/50 outline-none leading-relaxed"
                 />
               </div>
 
-              <div className="flex items-center justify-between">
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
                 <button
                   type="button"
                   onClick={handleParseRawInput}
-                  className="px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-600/20 flex items-center gap-2 transition-all hover:scale-105"
+                  className="w-full sm:w-auto px-7 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all hover:scale-105"
                 >
                   <ListChecks className="h-4 w-4" />
                   <span>Phân Tích Dữ Liệu Ngay</span>
@@ -869,28 +1236,53 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
                   <button
                     type="button"
                     onClick={handleSaveToLocalStorage}
-                    className="px-6 py-3 rounded-2xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-sky-600/20 flex items-center gap-2 transition-all hover:scale-105"
+                    className="w-full sm:w-auto px-7 py-3 rounded-2xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-sky-600/20 flex items-center justify-center gap-2 transition-all hover:scale-105"
                   >
                     <Save className="h-4 w-4" />
-                    <span>Lưu Vào Cây Thư Mục ({batchType === "MCQ" ? parsedMCQs.length : parsedFlashcards.length} mục)</span>
+                    <span>
+                      Lưu Vào Cây Thư Mục ({batchType === "MCQ" ? parsedMCQs.length : parsedFlashcards.length} {batchType === "MCQ" ? "câu MCQ" : "thẻ Flashcard"})
+                    </span>
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Parsed Previews */}
+            {/* 4. ERROR ALERTS (IF ANY) */}
+            {parseErrors.length > 0 && (
+              <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-300 text-xs space-y-1.5 animate-in fade-in">
+                <div className="flex items-center gap-2 font-bold">
+                  <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
+                  <span>Phát hiện {parseErrors.length} lưu ý khi phân tích dữ liệu:</span>
+                </div>
+                <ul className="list-disc list-inside space-y-1 pl-1 text-[11px]">
+                  {parseErrors.map((err, idx) => (
+                    <li key={idx}>{err}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* 5. PARSED PREVIEW FOR MCQ */}
             {parsedMCQs.length > 0 && batchType === "MCQ" && (
-              <div className="p-6 rounded-3xl border border-border bg-card shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-sm text-foreground">
-                    Danh Sách {parsedMCQs.length} Câu Hỏi Đã Phân Tích Chuẩn Bloom:
-                  </h3>
+              <div className="p-6 rounded-3xl border border-border bg-card shadow-sm space-y-4 animate-in fade-in">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+                  <div>
+                    <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      <span>Đã Phân Tích Thành Công {parsedMCQs.length} Câu Hỏi Trắc Nghiệm:</span>
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">
+                      Kiểm tra lại nội dung và đáp án trước khi bấm lưu vào Cây Thư Mục
+                    </p>
+                  </div>
+
                   <button
                     type="button"
                     onClick={handleSaveToLocalStorage}
-                    className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs"
+                    className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs flex items-center gap-1.5 self-end sm:self-center transition-all hover:scale-105"
                   >
-                    Lưu Toàn Bộ Vào Cây Thư Mục
+                    <Save className="h-3.5 w-3.5" />
+                    <span>Lưu Toàn Bộ ({parsedMCQs.length} câu)</span>
                   </button>
                 </div>
 
@@ -898,33 +1290,118 @@ Cơ chế tác dụng của Nitroglycerin trong cơn đau thắt ngực | Chuy�
                   {parsedMCQs.map((q, idx) => (
                     <div
                       key={idx}
-                      className="p-4 rounded-2xl border border-border bg-background text-xs space-y-2"
+                      className="p-4 rounded-2xl border border-border bg-background text-xs space-y-2.5"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-sky-600">Câu #{idx + 1}</span>
+                        <span className="font-extrabold text-sky-600">Câu #{idx + 1}</span>
                         <BloomBadge level={q.bloomLevel} size="sm" />
                       </div>
+
                       {q.clinicalVignette && (
-                        <p className="italic text-muted-foreground">
+                        <div className="p-2.5 rounded-xl bg-sky-50/50 dark:bg-sky-950/30 border border-sky-200/60 dark:border-sky-900/60 italic text-muted-foreground leading-relaxed">
                           &ldquo;{q.clinicalVignette}&rdquo;
-                        </p>
+                        </div>
                       )}
-                      <p className="font-bold text-foreground">{q.questionText}</p>
-                      <div className="grid grid-cols-2 gap-1.5 pt-1">
+
+                      <p className="font-bold text-foreground text-xs sm:text-sm">{q.questionText}</p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                         {q.options.map((opt, oIdx) => (
                           <div
                             key={oIdx}
                             className={cn(
-                              "p-2 rounded-lg border",
+                              "p-2.5 rounded-xl border flex items-center gap-2 font-medium",
                               oIdx === q.correctIndex
-                                ? "bg-emerald-50 text-emerald-800 border-emerald-300 font-bold dark:bg-emerald-950/50 dark:text-emerald-200"
-                                : "bg-muted/40 text-muted-foreground border-border"
+                                ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-800 font-bold shadow-2xs"
+                                : "bg-muted/30 text-muted-foreground border-border"
                             )}
                           >
-                            {String.fromCharCode(65 + oIdx)}. {opt}
+                            <span className={cn(
+                              "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black shrink-0",
+                              oIdx === q.correctIndex
+                                ? "bg-emerald-600 text-white"
+                                : "bg-muted text-muted-foreground"
+                            )}>
+                              {String.fromCharCode(65 + oIdx)}
+                            </span>
+                            <span className="truncate">{opt}</span>
+                            {oIdx === q.correctIndex && (
+                              <Check className="h-3.5 w-3.5 text-emerald-600 ml-auto shrink-0" />
+                            )}
                           </div>
                         ))}
                       </div>
+
+                      {q.explanation && (
+                        <div className="pt-1.5 border-t border-border/50 text-[11px] text-muted-foreground leading-relaxed flex items-start gap-1.5">
+                          <span className="font-bold text-foreground shrink-0">💡 Giải thích:</span>
+                          <span>{q.explanation}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 6. PARSED PREVIEW FOR FLASHCARD */}
+            {parsedFlashcards.length > 0 && batchType === "FLASHCARD" && (
+              <div className="p-6 rounded-3xl border border-border bg-card shadow-sm space-y-4 animate-in fade-in">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+                  <div>
+                    <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-purple-600" />
+                      <span>Đã Phân Tích Thành Công {parsedFlashcards.length} Thẻ Ghi Nhớ Flashcard:</span>
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">
+                      Kiểm tra mặt trước và mặt sau thẻ trước khi lưu vào Cây Thư Mục
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveToLocalStorage}
+                    className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs flex items-center gap-1.5 self-end sm:self-center transition-all hover:scale-105"
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    <span>Lưu Toàn Bộ ({parsedFlashcards.length} thẻ)</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {parsedFlashcards.map((fc, idx) => (
+                    <div
+                      key={idx}
+                      className="p-4 rounded-2xl border border-purple-200 dark:border-purple-900/60 bg-background text-xs space-y-3 shadow-2xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-purple-600">Thẻ Flashcard #{idx + 1}</span>
+                        <BloomBadge level={fc.bloomLevel} size="sm" />
+                      </div>
+
+                      {/* Front */}
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-bold uppercase text-muted-foreground">Mặt trước (Front / Thuật ngữ):</div>
+                        <div className="p-2.5 rounded-xl bg-muted/40 border border-border font-bold text-foreground">
+                          {fc.front}
+                        </div>
+                      </div>
+
+                      {/* Back */}
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-bold uppercase text-purple-600 dark:text-purple-400">Mặt sau (Back / Định nghĩa &amp; Cơ chế):</div>
+                        <div className="p-2.5 rounded-xl bg-purple-50/50 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-900/60 text-foreground leading-relaxed whitespace-pre-line">
+                          {fc.back}
+                        </div>
+                      </div>
+
+                      {/* Hint */}
+                      {fc.hint && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-2.5 py-1 rounded-lg border border-amber-200/60">
+                          <Lightbulb className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                          <span>Gợi ý: {fc.hint}</span>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
