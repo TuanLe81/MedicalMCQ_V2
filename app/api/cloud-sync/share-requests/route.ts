@@ -15,41 +15,38 @@ export async function GET(req: Request) {
     const { shareRequests } = await getGistData();
 
     if (!targetIdentity && !targetEmail && !targetId && !targetUsername) {
-      return NextResponse.json({
-        success: true,
-        shareRequests,
-      });
+      return NextResponse.json({ success: true, shareRequests });
     }
 
-    const filtered = shareRequests.filter((r) => {
+    const filtered = shareRequests.filter((r: any) => {
       // Match by recipientId first (most reliable)
       if (targetId && r.recipientId && r.recipientId === targetId) return true;
       // Match by email
-      if (targetEmail && (
-        r.recipientEmail?.toLowerCase().trim() === targetEmail ||
-        r.recipientIdentity?.toLowerCase().trim() === targetEmail ||
-        r.targetUsernameOrEmail?.toLowerCase().trim() === targetEmail
-      )) return true;
+      if (
+        targetEmail &&
+        (r.recipientEmail?.toLowerCase().trim() === targetEmail ||
+          r.recipientIdentity?.toLowerCase().trim() === targetEmail ||
+          r.targetUsernameOrEmail?.toLowerCase().trim() === targetEmail)
+      ) return true;
       // Match by username
-      if (targetUsername && (
-        r.recipientUsername?.toLowerCase().trim() === targetUsername ||
-        r.recipientIdentity?.toLowerCase().trim() === targetUsername ||
-        r.targetUsernameOrEmail?.toLowerCase().trim() === targetUsername
-      )) return true;
+      if (
+        targetUsername &&
+        (r.recipientUsername?.toLowerCase().trim() === targetUsername ||
+          r.recipientIdentity?.toLowerCase().trim() === targetUsername ||
+          r.targetUsernameOrEmail?.toLowerCase().trim() === targetUsername)
+      ) return true;
       // Fallback: match by general identity string
-      if (targetIdentity && (
-        r.recipientIdentity?.toLowerCase().trim() === targetIdentity ||
-        r.recipientEmail?.toLowerCase().trim() === targetIdentity ||
-        r.recipientUsername?.toLowerCase().trim() === targetIdentity ||
-        r.targetUsernameOrEmail?.toLowerCase().trim() === targetIdentity
-      )) return true;
+      if (
+        targetIdentity &&
+        (r.recipientIdentity?.toLowerCase().trim() === targetIdentity ||
+          r.recipientEmail?.toLowerCase().trim() === targetIdentity ||
+          r.recipientUsername?.toLowerCase().trim() === targetIdentity ||
+          r.targetUsernameOrEmail?.toLowerCase().trim() === targetIdentity)
+      ) return true;
       return false;
     });
 
-    return NextResponse.json({
-      success: true,
-      shareRequests: filtered,
-    });
+    return NextResponse.json({ success: true, shareRequests: filtered });
   } catch (err: any) {
     return NextResponse.json(
       { success: false, error: err.message || "Failed to fetch share requests" },
@@ -68,22 +65,15 @@ export async function POST(req: Request) {
     let updatedList = [...shareRequests];
 
     if (shareRequest) {
-      // Add or replace
-      const existingIdx = updatedList.findIndex((r) => r.id === shareRequest.id);
+      const existingIdx = updatedList.findIndex((r: any) => r.id === shareRequest.id);
       if (existingIdx !== -1) {
         updatedList[existingIdx] = shareRequest;
       } else {
         updatedList.unshift(shareRequest);
       }
     } else if (updateRequest) {
-      // Update status (ACCEPTED / REJECTED)
       const { id, status } = updateRequest;
-      updatedList = updatedList.map((r) => {
-        if (r.id === id) {
-          return { ...r, status };
-        }
-        return r;
-      });
+      updatedList = updatedList.map((r: any) => (r.id === id ? { ...r, status } : r));
     }
 
     const ok = await updateGistFiles({ shareRequests: updatedList });
@@ -95,10 +85,7 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      shareRequests: updatedList,
-    });
+    return NextResponse.json({ success: true, shareRequests: updatedList });
   } catch (err: any) {
     return NextResponse.json(
       { success: false, error: err.message || "Failed to update share requests" },
@@ -106,4 +93,3 @@ export async function POST(req: Request) {
     );
   }
 }
-
