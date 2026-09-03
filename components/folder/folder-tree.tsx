@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EditDeckModal } from "@/components/deck/edit-deck-modal";
+import { ShareItemModal } from "@/components/deck/share-item-modal";
 
 interface FolderTreeProps {
   initialFolders?: FolderNode[];
@@ -57,8 +58,7 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
 
   // Share states
   const [sharingFolder, setSharingFolder] = useState<FolderNode | null>(null);
-  const [targetUser, setTargetUser] = useState("");
-  const [shareFeedback, setShareFeedback] = useState<{ success: boolean; message: string } | null>(null);
+  const [deckToShare, setDeckToShare] = useState<Deck | null>(null);
   const [showShareRequestsInbox, setShowShareRequestsInbox] = useState(false);
 
   // Delete states
@@ -189,41 +189,16 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
       return;
     }
     setSharingFolder(folder);
-    setTargetUser("");
-    setShareFeedback(null);
   };
 
-  const handleSendShare = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!sharingFolder || !targetUser.trim()) return;
-
-    const res = sendShareRequest(sharingFolder, targetUser.trim());
-    if (res.success) {
-      setShareFeedback({
-        success: true,
-        message: `Đã gửi lời mời chia sẻ thư mục "${sharingFolder.name}" tới @${targetUser}. Người nhận cần chấp nhận để xem thư mục!`,
-      });
-      setTimeout(() => {
-        setSharingFolder(null);
-        setShareFeedback(null);
-      }, 2500);
-    } else {
-      setShareFeedback({
-        success: false,
-        message: res.error || "Không thể gửi lời mời chia sẻ.",
-      });
-    }
+  const handleAcceptRequest = async (requestId: string) => {
+    await respondShareRequest(requestId, true);
+    setFolders(getUserFolders());
   };
 
-  const handleAcceptRequest = (requestId: string) => {
-    respondShareRequest(requestId, true);
-    setTimeout(() => {
-      setFolders(getUserFolders());
-    }, 200);
-  };
-
-  const handleRejectRequest = (requestId: string) => {
-    respondShareRequest(requestId, false);
+  const handleRejectRequest = async (requestId: string) => {
+    await respondShareRequest(requestId, false);
+    setFolders(getUserFolders());
   };
 
   const renderDeckCard = (deck: Deck, folderName?: string) => {
@@ -298,6 +273,16 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
           >
             <Plus className="h-4 w-4" />
           </Link>
+
+          {/* Share Deck Button */}
+          <button
+            type="button"
+            onClick={() => setDeckToShare(deck)}
+            className="p-1.5 rounded-xl text-muted-foreground hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/50 transition-colors"
+            title="Chia sẻ bộ đề này cho bạn học hoặc đồng nghiệp"
+          >
+            <Share2 className="h-4 w-4" />
+          </button>
 
           {/* Edit Deck Button (Rename & Change Specialty) */}
           <button
@@ -708,155 +693,122 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
       )}
 
       {/* SHARE FOLDER MODAL */}
-      {sharingFolder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-2xl space-y-4 animate-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-border/60 pb-3">
-              <div className="flex items-center gap-2">
-                <Share2 className="h-5 w-5 text-indigo-600" />
-                <h3 className="font-bold text-base text-foreground">
-                  Chia Sẻ Thư Mục Học Tập
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSharingFolder(null)}
-                className="text-muted-foreground hover:text-foreground text-sm"
-              >
-                ✕
-              </button>
-            </div>
+      <ShareItemModal
+        isOpen={!!sharingFolder}
+        onClose={() => setSharingFolder(null)}
+        folder={sharingFolder}
+        itemType="FOLDER"
+      />
 
-            <div className="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 text-xs text-indigo-900 dark:text-indigo-200 space-y-1">
-              <div className="font-bold">📁 {sharingFolder.name}</div>
-              <p className="text-[11px] opacity-80">
-                Người nhận sẽ nhận được thông báo lời mời và cần bấm <strong>&ldquo;Chấp nhận&rdquo;</strong> để thêm thư mục này vào Cây Thư Mục của họ.
-              </p>
-            </div>
-
-            <form onSubmit={handleSendShare} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase text-muted-foreground">
-                  Email hoặc Tên Đăng Nhập Người Nhận *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="VD: mai.nguyen@med.edu.vn hoặc hoangmai"
-                  value={targetUser}
-                  onChange={(e) => setTargetUser(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-2xl border border-border bg-background text-xs sm:text-sm text-foreground focus:ring-2 focus:ring-indigo-500/50 outline-none"
-                />
-              </div>
-
-              {shareFeedback && (
-                <div
-                  className={cn(
-                    "p-3 rounded-xl text-xs font-semibold flex items-center gap-2",
-                    shareFeedback.success
-                      ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                      : "bg-rose-50 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
-                  )}
-                >
-                  {shareFeedback.success ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
-                  <span>{shareFeedback.message}</span>
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border/60">
-                <button
-                  type="button"
-                  onClick={() => setSharingFolder(null)}
-                  className="px-4 py-2.5 rounded-xl border border-border text-xs font-semibold hover:bg-muted"
-                >
-                  Đóng
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition-all hover:scale-105 flex items-center gap-1.5"
-                >
-                  <Send className="h-3.5 w-3.5" />
-                  <span>Gửi Lời Mời</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* SHARE INDIVIDUAL DECK MODAL */}
+      <ShareItemModal
+        isOpen={!!deckToShare}
+        onClose={() => setDeckToShare(null)}
+        deck={deckToShare}
+        itemType="DECK"
+      />
 
       {/* SHARE REQUESTS INBOX MODAL */}
       {showShareRequestsInbox && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
           <div className="w-full max-w-lg rounded-3xl border border-border bg-card p-6 shadow-2xl space-y-4 animate-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <div className="flex items-center gap-2">
-                <Inbox className="h-5 w-5 text-indigo-600" />
-                <h3 className="font-bold text-base text-foreground">
-                  Hộp Thư Lời Mời Chia Sẻ Thư Mục
-                </h3>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-400">
+                  <Inbox className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-foreground">
+                    Hộp Thư Lời Mời Chia Sẻ
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">
+                    Nhận tài liệu, thư mục và bộ đề được gửi từ các bác sĩ khác
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowShareRequestsInbox(false)}
-                className="text-muted-foreground hover:text-foreground text-sm"
+                className="text-muted-foreground hover:text-foreground text-sm p-1 rounded-lg hover:bg-muted"
               >
                 ✕
               </button>
             </div>
 
             {shareRequests.length === 0 ? (
-              <div className="py-8 text-center text-xs text-muted-foreground space-y-2">
-                <Inbox className="h-8 w-8 mx-auto opacity-40" />
-                <p>Bạn chưa có lời mời chia sẻ thư mục nào.</p>
+              <div className="py-10 text-center text-xs text-muted-foreground space-y-2">
+                <Inbox className="h-10 w-10 mx-auto opacity-30 text-sky-600" />
+                <p className="font-medium">Bạn chưa có lời mời chia sẻ nào.</p>
+                <p className="text-[11px] opacity-70">
+                  Khi đồng nghiệp hoặc bạn học gửi chia sẻ thư mục/bộ đề, lời mời sẽ xuất hiện tại đây.
+                </p>
               </div>
             ) : (
-              <div className="space-y-3 max-h-80 overflow-y-auto">
-                {shareRequests.map((req) => (
-                  <div
-                    key={req.id}
-                    className="p-4 rounded-2xl border border-border bg-background/60 space-y-2 text-xs"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-bold text-foreground text-sm">📁 {req.folderName}</div>
-                        <div className="text-[11px] text-muted-foreground">
-                          Từ: <strong>{req.ownerName}</strong> ({req.ownerSchool || "Trường Y"}) • {req.createdAt}
-                        </div>
-                      </div>
-                      <span
-                        className={cn(
-                          "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
-                          req.status === "PENDING"
-                            ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                            : req.status === "ACCEPTED"
-                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                            : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
-                        )}
-                      >
-                        {req.status === "PENDING" ? "Chờ duyệt" : req.status === "ACCEPTED" ? "Đã chấp nhận" : "Đã từ chối"}
-                      </span>
-                    </div>
+              <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                {shareRequests.map((req) => {
+                  const isDeckReq = req.itemType === "DECK";
+                  const isMCQ = isDeckReq && req.deckData?.type === "MCQ";
 
-                    {req.status === "PENDING" && (
-                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
-                        <button
-                          type="button"
-                          onClick={() => handleRejectRequest(req.id)}
-                          className="px-3 py-1.5 rounded-xl border border-border text-[11px] font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                  return (
+                    <div
+                      key={req.id}
+                      className="p-4 rounded-2xl border border-border bg-background/60 space-y-2.5 text-xs hover:border-sky-300 dark:hover:border-sky-800 transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-1.5 font-bold text-foreground text-sm">
+                            <span className="text-base">
+                              {isDeckReq ? (isMCQ ? "📝" : "🗂️") : "📁"}
+                            </span>
+                            <span>{req.deckTitle || req.folderName}</span>
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                              {isDeckReq ? `Bộ đề ${req.deckData?.type || "Y Khoa"}` : "Thư mục"}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            Từ: <strong className="text-foreground">{req.ownerName}</strong>{" "}
+                            ({req.ownerSchool || "Trường Y"}) • {req.createdAt}
+                          </div>
+                        </div>
+                        <span
+                          className={cn(
+                            "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase shrink-0",
+                            req.status === "PENDING"
+                              ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                              : req.status === "ACCEPTED"
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                              : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
+                          )}
                         >
-                          Từ Chối
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAcceptRequest(req.id)}
-                          className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-all shadow-xs"
-                        >
-                          ✓ Chấp Nhận &amp; Thêm Vào Cây Thư Mục
-                        </button>
+                          {req.status === "PENDING"
+                            ? "Chờ duyệt"
+                            : req.status === "ACCEPTED"
+                            ? "Đã nhận"
+                            : "Đã từ chối"}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                ))}
+
+                      {req.status === "PENDING" && (
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
+                          <button
+                            type="button"
+                            onClick={() => handleRejectRequest(req.id)}
+                            className="px-3 py-1.5 rounded-xl border border-border text-[11px] font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                          >
+                            Từ Chối
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAcceptRequest(req.id)}
+                            className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-all shadow-xs"
+                          >
+                            ✓ Chấp Nhận &amp; Thêm Vào Thư Viện
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

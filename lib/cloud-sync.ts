@@ -11,6 +11,7 @@ export async function getGistData(): Promise<{
   users: any[];
   folders: Record<string, any[]>;
   decks: Record<string, any[]>;
+  shareRequests: any[];
 }> {
   try {
     const res = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
@@ -23,7 +24,7 @@ export async function getGistData(): Promise<{
     });
 
     if (!res.ok) {
-      return { users: [], folders: {}, decks: {} };
+      return { users: [], folders: {}, decks: {}, shareRequests: [] };
     }
 
     const data = await res.json();
@@ -32,6 +33,7 @@ export async function getGistData(): Promise<{
     let users: any[] = [];
     let folders: Record<string, any[]> = {};
     let decks: Record<string, any[]> = {};
+    let shareRequests: any[] = [];
 
     if (files["medlearn_users.json"]?.content) {
       try {
@@ -52,9 +54,16 @@ export async function getGistData(): Promise<{
       } catch (e) {}
     }
 
-    return { users, folders, decks };
+    if (files["medlearn_share_requests.json"]?.content) {
+      try {
+        const parsed = JSON.parse(files["medlearn_share_requests.json"].content);
+        shareRequests = Array.isArray(parsed) ? parsed : [];
+      } catch (e) {}
+    }
+
+    return { users, folders, decks, shareRequests };
   } catch (err) {
-    return { users: [], folders: {}, decks: {} };
+    return { users: [], folders: {}, decks: {}, shareRequests: [] };
   }
 }
 
@@ -62,6 +71,7 @@ export async function updateGistFiles(filesToUpdate: {
   users?: any[];
   folders?: Record<string, any[]>;
   decks?: Record<string, any[]>;
+  shareRequests?: any[];
 }): Promise<boolean> {
   try {
     const filesPayload: Record<string, { content: string }> = {};
@@ -81,6 +91,12 @@ export async function updateGistFiles(filesToUpdate: {
     if (filesToUpdate.decks !== undefined) {
       filesPayload["medlearn_decks.json"] = {
         content: JSON.stringify(filesToUpdate.decks, null, 2),
+      };
+    }
+
+    if (filesToUpdate.shareRequests !== undefined) {
+      filesPayload["medlearn_share_requests.json"] = {
+        content: JSON.stringify(filesToUpdate.shareRequests, null, 2),
       };
     }
 

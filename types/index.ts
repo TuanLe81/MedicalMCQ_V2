@@ -92,7 +92,10 @@ export interface FolderShareRequest {
   targetUsernameOrEmail?: string;
   status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
   createdAt: string;
-  folderData: FolderNode;
+  folderData?: FolderNode;
+  deckData?: Deck;
+  deckTitle?: string;
+  itemType?: 'FOLDER' | 'DECK';
 }
 
 export interface BloomScoreMatrix {

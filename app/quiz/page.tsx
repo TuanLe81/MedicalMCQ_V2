@@ -26,9 +26,11 @@ import {
   Lock,
   Stethoscope,
   Pencil,
+  Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EditDeckModal } from "@/components/deck/edit-deck-modal";
+import { ShareItemModal } from "@/components/deck/share-item-modal";
 
 export default function QuizIndexPage() {
   const { user, getUserDecks, deleteUserDeck } = useAuth();
@@ -38,6 +40,7 @@ export default function QuizIndexPage() {
   const [selectedSpecialty, setSelectedSpecialty] = useState("Tất cả chuyên khoa");
   const [deckToDelete, setDeckToDelete] = useState<DeckWithFolder | null>(null);
   const [deckToEdit, setDeckToEdit] = useState<DeckWithFolder | null>(null);
+  const [deckToShare, setDeckToShare] = useState<DeckWithFolder | null>(null);
   const [showDemoLockAlert, setShowDemoLockAlert] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [pausedProgressMap, setPausedProgressMap] = useState<Record<string, { answeredCount: number; totalQuestions: number }>>({});
@@ -333,6 +336,16 @@ export default function QuizIndexPage() {
                       <Plus className="h-4 w-4" />
                     </Link>
 
+                    {/* Share Deck Button */}
+                    <button
+                      type="button"
+                      onClick={() => setDeckToShare(deck)}
+                      className="p-2.5 rounded-2xl border border-border hover:bg-sky-50 dark:hover:bg-sky-950/40 text-muted-foreground hover:text-sky-600 transition-colors"
+                      title="Chia sẻ bộ đề này cho bạn học hoặc đồng nghiệp"
+                    >
+                      <Share2 className="h-4 w-4" />
+                    </button>
+
                     {/* Edit Deck Button (Rename & Change Specialty) */}
                     <button
                       type="button"
@@ -437,6 +450,14 @@ export default function QuizIndexPage() {
             </div>
           </div>
         )}
+
+        {/* SHARE DECK MODAL */}
+        <ShareItemModal
+          isOpen={!!deckToShare}
+          onClose={() => setDeckToShare(null)}
+          deck={deckToShare}
+          itemType="DECK"
+        />
 
         {/* EDIT DECK MODAL */}
         <EditDeckModal

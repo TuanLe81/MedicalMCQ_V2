@@ -33,10 +33,18 @@ interface AuthContextType {
   // Forgot / Reset Password
   verifyAccountExists: (identity: string) => Promise<{ success: boolean; user?: UserProfile; error?: string }>;
   resetPassword: (identity: string, newPass: string) => Promise<{ success: boolean; error?: string }>;
-  // Folder Sharing System
+  // Folder & Deck Sharing System
   shareRequests: FolderShareRequest[];
-  sendShareRequest: (folder: FolderNode, target: string) => { success: boolean; error?: string };
-  respondShareRequest: (requestId: string, accept: boolean) => void;
+  sendShareRequest: (
+    item: FolderNode | Deck,
+    target: string,
+    itemType?: "FOLDER" | "DECK"
+  ) => Promise<{ success: boolean; error?: string }>;
+  respondShareRequest: (
+    requestId: string,
+    accept: boolean,
+    targetFolderId?: string
+  ) => Promise<{ success: boolean; error?: string }>;
   getUserFolders: () => FolderNode[];
   saveUserFolders: (folders: FolderNode[]) => { success: boolean; error?: string };
   getUserDecks: (typeFilter?: "MCQ" | "FLASHCARD") => DeckWithFolder[];
@@ -272,6 +280,32 @@ const syncUserDataFromCloud = async (userId: string) => {
   } catch (e) {}
 };
 
+// Helper to sync share requests from cloud
+const syncShareRequestsFromCloud = async (
+  currentUser: UserProfile
+): Promise<FolderShareRequest[]> => {
+  if (typeof window === "undefined" || !currentUser) return [];
+  try {
+    const targetIdentity = currentUser.username || currentUser.email;
+    const res = await fetch(
+      `/api/cloud-sync/share-requests?targetIdentity=${encodeURIComponent(
+        targetIdentity
+      )}&ownerId=${encodeURIComponent(currentUser.id)}`,
+      { cache: "no-store" }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (data.success && Array.isArray(data.shareRequests)) {
+      localStorage.setItem(
+        "medlearn_share_requests",
+        JSON.stringify(data.shareRequests)
+      );
+      return data.shareRequests;
+    }
+  } catch (e) {}
+  return [];
+};
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -313,6 +347,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const parsed = JSON.parse(activeUserStr);
         if (parsed?.id && !parsed.isDemo) {
           syncUserDataFromCloud(parsed.id);
+          syncShareRequestsFromCloud(parsed).then((reqs) => {
+            if (reqs && reqs.length > 0) {
+              setShareRequests(reqs);
+            }
+          });
         }
       }
     });
@@ -509,9 +548,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(found);
       localStorage.setItem("medlearn_current_user", JSON.stringify(found));
 
-      // Download user's folders & custom decks from cloud onto this device
+      // Download user's folders, custom decks & share requests from cloud onto this device
       if (!found.isDemo) {
         await syncUserDataFromCloud(found.id);
+        syncShareRequestsFromCloud(found).then((reqs) => {
+          if (reqs && reqs.length > 0) setShareRequests(reqs);
+        });
       }
 
       return { success: true };
@@ -1099,46 +1141,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true, updatedDeck: foundDeck };
   };
 
-  // SHARING
-  const sendShareRequest = (
-    folder: FolderNode,
-    target: string
-  ): { success: boolean; error?: string } => {
+  // FOLDER & DECK SHARING (Cloud Synchronized)
+  const sendShareRequest = async (
+    item: FolderNode | Deck,
+    target: string,
+    itemType: "FOLDER" | "DECK" = "FOLDER"
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
       if (!user) return { success: false, error: "Vui lòng đăng nhập!" };
 
       const cleanTarget = target.toLowerCase().trim();
-      const usersList = getStoredUsers();
-      const targetUserObj = usersList.find(
+      let usersList = getStoredUsers();
+      let targetUserObj = usersList.find(
         (u) =>
-          u.email?.toLowerCase() === cleanTarget ||
-          u.username?.toLowerCase() === cleanTarget
+          u.email?.toLowerCase().trim() === cleanTarget ||
+          u.username?.toLowerCase().trim() === cleanTarget
       );
+
+      // If not in local, check cloud database
+      if (!targetUserObj) {
+        usersList = await syncUsersWithCloud();
+        targetUserObj = usersList.find(
+          (u) =>
+            u.email?.toLowerCase().trim() === cleanTarget ||
+            u.username?.toLowerCase().trim() === cleanTarget
+        );
+      }
 
       if (!targetUserObj) {
         return {
           success: false,
-          error: `Không tìm thấy người dùng @${target} trong hệ thống!`,
+          error: `Không tìm thấy người dùng @${target} trong hệ thống! Vui lòng kiểm tra lại email hoặc tên đăng nhập.`,
         };
       }
 
       if (targetUserObj.id === user.id) {
         return {
           success: false,
-          error: "Bạn không thể tự chia sẻ thư mục cho chính mình!",
+          error: "Bạn không thể tự chia sẻ tài liệu cho chính mình!",
         };
       }
 
+      const isDeck = itemType === "DECK";
+      const folderItem = !isDeck ? (item as FolderNode) : undefined;
+      const deckItem = isDeck ? (item as Deck) : undefined;
+
       const newRequest: FolderShareRequest = {
         id: `req_${Date.now()}`,
-        folderId: folder.id,
-        folderName: folder.name,
-        folderData: folder,
+        folderId: folderItem?.id || "",
+        folderName: folderItem?.name || deckItem?.title || "Tài Liệu Y Khoa",
+        folderData: folderItem,
+        deckData: deckItem,
+        deckTitle: deckItem?.title,
+        itemType,
         ownerId: user.id,
         ownerName: user.name,
         ownerEmail: user.email,
         ownerSchool: user.medicalSchool,
-        recipientIdentity: target,
+        recipientIdentity: targetUserObj.username || targetUserObj.email,
+        targetUsernameOrEmail: targetUserObj.username || targetUserObj.email,
         status: "PENDING",
         createdAt: new Date().toLocaleDateString("vi-VN"),
       };
@@ -1151,13 +1212,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem("medlearn_share_requests", JSON.stringify(list));
       setShareRequests(list);
 
+      // Push to Cloud Gist Database
+      try {
+        await fetch("/api/cloud-sync/share-requests", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ shareRequest: newRequest }),
+        });
+      } catch (err) {}
+
       return { success: true };
     } catch (e) {
       return { success: false, error: "Lỗi gửi yêu cầu chia sẻ!" };
     }
   };
 
-  const respondShareRequest = (requestId: string, accept: boolean) => {
+  const respondShareRequest = async (
+    requestId: string,
+    accept: boolean,
+    targetFolderId?: string
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
       const existingSharesStr = localStorage.getItem("medlearn_share_requests");
       let list: FolderShareRequest[] = existingSharesStr
@@ -1165,7 +1239,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         : [];
 
       const reqIndex = list.findIndex((r) => r.id === requestId);
-      if (reqIndex === -1) return;
+      if (reqIndex === -1) return { success: false, error: "Yêu cầu không tồn tại!" };
 
       const req = list[reqIndex];
       req.status = accept ? "ACCEPTED" : "REJECTED";
@@ -1174,24 +1248,71 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem("medlearn_share_requests", JSON.stringify(list));
       setShareRequests(list);
 
+      // Push update status to Cloud Gist
+      try {
+        fetch("/api/cloud-sync/share-requests", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ updateRequest: { id: requestId, status: req.status } }),
+        }).catch(() => {});
+      } catch (e) {}
+
       if (accept && user) {
-        const userFoldersKey = `medlearn_folders_${user.id}`;
-        const userFoldersStr = localStorage.getItem(userFoldersKey);
-        const userFolders: FolderNode[] = userFoldersStr
-          ? JSON.parse(userFoldersStr)
-          : [];
+        const userFolders = getUserFolders();
 
-        const sharedFolderCopy: FolderNode = {
-          ...req.folderData,
-          id: `shared_${req.folderData.id}_${Date.now()}`,
-          isShared: true,
-          sharedBy: req.ownerName,
-        };
+        if (req.itemType === "DECK" && req.deckData) {
+          // Add single shared deck to user's collection
+          const sharedDeckCopy: Deck = {
+            ...req.deckData,
+            id: `shared_deck_${Date.now()}`,
+            title: `${req.deckData.title} (Từ ${req.ownerName})`,
+            updatedAt: new Date().toISOString().split("T")[0],
+          };
 
-        userFolders.unshift(sharedFolderCopy);
-        localStorage.setItem(userFoldersKey, JSON.stringify(userFolders));
+          saveUserDeck(
+            sharedDeckCopy,
+            targetFolderId || (userFolders.length > 0 ? userFolders[0].id : "CREATE_NEW"),
+            "Thư Mục Được Chia Sẻ"
+          );
+        } else if (req.folderData) {
+          // Add whole folder
+          const sharedFolderCopy: FolderNode = {
+            ...req.folderData,
+            id: `shared_folder_${Date.now()}`,
+            name: `${req.folderData.name} (Từ ${req.ownerName})`,
+            isShared: true,
+            sharedBy: req.ownerName,
+          };
+
+          const updatedFolders = [sharedFolderCopy, ...userFolders];
+          saveUserFolders(updatedFolders);
+
+          // Extract all decks from shared folder into user's custom decks
+          const customKey = `medlearn_custom_decks_${user.id}`;
+          const currentCustomDecks: Deck[] = localStorage.getItem(customKey)
+            ? JSON.parse(localStorage.getItem(customKey)!)
+            : [];
+
+          const extractDecks = (nodes: FolderNode[]): Deck[] => {
+            let res: Deck[] = [];
+            for (const n of nodes) {
+              if (n.decks) res.push(...n.decks);
+              if (n.children) res.push(...extractDecks(n.children));
+            }
+            return res;
+          };
+
+          const decksInSharedFolder = extractDecks([sharedFolderCopy]);
+          const newDecksList = [...decksInSharedFolder, ...currentCustomDecks];
+          localStorage.setItem(customKey, JSON.stringify(newDecksList));
+          pushUserDecksAndFoldersToCloud(user.id);
+        }
       }
-    } catch (e) {}
+
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: "Lỗi xử lý phản hồi chia sẻ!" };
+    }
   };
 
   return (

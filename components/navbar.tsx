@@ -31,11 +31,15 @@ export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, shareRequests } = useAuth();
 
   const [mounted, setMounted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+
+  const pendingShareCount = (shareRequests || []).filter(
+    (r) => r.status === "PENDING"
+  ).length;
 
   useEffect(() => {
     setMounted(true);
@@ -95,6 +99,11 @@ export function Navbar() {
               >
                 <Icon className="h-4 w-4" />
                 <span>{link.label}</span>
+                {link.href === "/folders" && pendingShareCount > 0 && (
+                  <span className="flex h-4.5 min-w-4.5 px-1.5 items-center justify-center rounded-full bg-rose-600 text-white text-[10px] font-black animate-pulse shadow-xs">
+                    {pendingShareCount}
+                  </span>
+                )}
                 {isLocked ? (
                   <Lock className="h-3 w-3 text-muted-foreground/60 ml-0.5" />
                 ) : link.isSpecial ? (
@@ -257,11 +266,18 @@ export function Navbar() {
                   <Icon className="h-4 w-4" />
                   <span>{link.label}</span>
                 </div>
-                {isLocked ? (
-                  <Lock className="h-3.5 w-3.5 text-muted-foreground/60" />
-                ) : link.isSpecial ? (
-                  <Sparkles className="h-4 w-4 text-amber-500" />
-                ) : null}
+                <div className="flex items-center gap-2">
+                  {link.href === "/folders" && pendingShareCount > 0 && (
+                    <span className="flex h-5 min-w-5 px-1.5 items-center justify-center rounded-full bg-rose-600 text-white text-[10px] font-black animate-pulse shadow-xs">
+                      {pendingShareCount} mới
+                    </span>
+                  )}
+                  {isLocked ? (
+                    <Lock className="h-3.5 w-3.5 text-muted-foreground/60" />
+                  ) : link.isSpecial ? (
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                  ) : null}
+                </div>
               </Link>
             );
           })}
