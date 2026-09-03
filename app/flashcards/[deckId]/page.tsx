@@ -4,17 +4,20 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { MOCK_FLASHCARDS } from "@/lib/mock-data";
-import { FlashcardItem } from "@/types";
+import { FlashcardItem, Deck } from "@/types";
 import { useAuth } from "@/lib/auth-context";
 import { FlashcardViewer } from "@/components/flashcard/flashcard-viewer";
 import { AuthGuard } from "@/components/auth-guard";
-import { ArrowLeft, Stethoscope, Sparkles, Layers, FolderTree, PlusCircle, Plus } from "lucide-react";
+import { EditDeckModal } from "@/components/deck/edit-deck-modal";
+import { ArrowLeft, Stethoscope, Sparkles, Layers, FolderTree, PlusCircle, Plus, Pencil } from "lucide-react";
 
 export default function FlashcardsPage() {
   const params = useParams();
   const { user, getUserDecks } = useAuth();
 
   const [deckTitle, setDeckTitle] = useState("Bộ Thẻ Flashcard 3D Y Khoa");
+  const [currentDeck, setCurrentDeck] = useState<Deck | null>(null);
+  const [showEditDeckModal, setShowEditDeckModal] = useState(false);
   const [cards, setCards] = useState<FlashcardItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -24,10 +27,23 @@ export default function FlashcardsPage() {
       const matched = userDecks.find((d) => d.id === params?.deckId);
 
       if (matched && matched.flashcards && matched.flashcards.length > 0) {
+        setCurrentDeck(matched);
         setDeckTitle(matched.title);
         setCards(matched.flashcards);
       } else if (user?.isDemo || params?.deckId === "deck_pharm_01") {
-        setDeckTitle("Flashcard Cơ Chế Thuốc Tim Mạch & Cấp Cứu (Demo)");
+        const demoDeck: Deck = {
+          id: "deck_pharm_01",
+          title: "Flashcard Cơ Chế Thuốc Tim Mạch & Cấp Cứu (Demo)",
+          type: "FLASHCARD",
+          specialty: "Dược Lý Lâm Sàng",
+          description: "Bộ thẻ flashcard dược lý mẫu",
+          itemCount: MOCK_FLASHCARDS.length,
+          flashcards: MOCK_FLASHCARDS,
+          createdAt: "2026-08-01",
+          updatedAt: "2026-08-01",
+        };
+        setCurrentDeck(demoDeck);
+        setDeckTitle(demoDeck.title);
         setCards(MOCK_FLASHCARDS);
       } else {
         setCards([]);
@@ -96,9 +112,21 @@ export default function FlashcardsPage() {
                     </span>
                     <span className="text-xs text-muted-foreground">Spaced Repetition</span>
                   </div>
-                  <h1 className="text-lg sm:text-xl font-bold text-foreground leading-tight">
-                    {deckTitle}
-                  </h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-lg sm:text-xl font-bold text-foreground leading-tight">
+                      {deckTitle}
+                    </h1>
+                    {currentDeck && (
+                      <button
+                        type="button"
+                        onClick={() => setShowEditDeckModal(true)}
+                        className="p-1 rounded-lg text-muted-foreground hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 transition-colors"
+                        title="Đổi tên hoặc chuyên khoa bộ đề"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -115,6 +143,17 @@ export default function FlashcardsPage() {
 
             {/* 3D Flashcard Player */}
             <FlashcardViewer cards={cards} deckTitle={deckTitle} />
+
+            {/* Edit Deck Modal */}
+            <EditDeckModal
+              isOpen={showEditDeckModal}
+              onClose={() => setShowEditDeckModal(false)}
+              deck={currentDeck}
+              onSuccess={(updated) => {
+                setDeckTitle(updated.title);
+                setCurrentDeck(updated);
+              }}
+            />
           </>
         )}
       </div>

@@ -33,8 +33,10 @@ import {
   Save,
   LogOut,
   Check,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EditDeckModal } from "@/components/deck/edit-deck-modal";
 
 export interface SavedQuizProgress {
   deckId: string;
@@ -57,6 +59,8 @@ export default function QuizPage() {
   const { user, recordQuizSubmission, getUserDecks } = useAuth();
 
   const [deckTitle, setDeckTitle] = useState("Bộ Đề Luyện Trắc Nghiệm Y Khoa");
+  const [currentDeck, setCurrentDeck] = useState<Deck | null>(null);
+  const [showEditDeckModal, setShowEditDeckModal] = useState(false);
   const [questions, setQuestions] = useState<MCQQuestion[]>([]);
   const [isLoadingDeck, setIsLoadingDeck] = useState(true);
 
@@ -94,10 +98,23 @@ export default function QuizPage() {
       const matched = userDecks.find((d) => d.id === params?.deckId);
 
       if (matched && matched.questions && matched.questions.length > 0) {
+        setCurrentDeck(matched);
         setDeckTitle(matched.title);
         setQuestions(matched.questions);
       } else if (user?.isDemo || params?.deckId === "deck_cardio_01") {
-        setDeckTitle("Bộ Đề MCQ Mẫu: Suy Tim & Bệnh Mạch Vành (Demo)");
+        const demoDeck: Deck = {
+          id: "deck_cardio_01",
+          title: "Bộ Đề MCQ Mẫu: Suy Tim & Bệnh Mạch Vành (Demo)",
+          type: "MCQ",
+          specialty: "Nội Tim Mạch",
+          description: "Bộ câu hỏi trắc nghiệm tim mạch mẫu",
+          itemCount: MOCK_MCQ_QUESTIONS.length,
+          questions: MOCK_MCQ_QUESTIONS,
+          createdAt: "2026-08-01",
+          updatedAt: "2026-08-01",
+        };
+        setCurrentDeck(demoDeck);
+        setDeckTitle(demoDeck.title);
         setQuestions(MOCK_MCQ_QUESTIONS);
       } else {
         setQuestions([]);
@@ -394,9 +411,21 @@ export default function QuizPage() {
                     </span>
                     <span className="text-xs text-muted-foreground">Chuẩn Thang Đo Bloom</span>
                   </div>
-                  <h1 className="text-lg sm:text-2xl font-black text-foreground leading-tight">
-                    {deckTitle}
-                  </h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-lg sm:text-2xl font-black text-foreground leading-tight">
+                      {deckTitle}
+                    </h1>
+                    {currentDeck && (
+                      <button
+                        type="button"
+                        onClick={() => setShowEditDeckModal(true)}
+                        className="p-1 rounded-lg text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors"
+                        title="Đổi tên hoặc chuyên khoa bộ đề"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -970,6 +999,17 @@ export default function QuizPage() {
                 </div>
               </div>
             )}
+
+            {/* Edit Deck Modal */}
+            <EditDeckModal
+              isOpen={showEditDeckModal}
+              onClose={() => setShowEditDeckModal(false)}
+              deck={currentDeck}
+              onSuccess={(updated) => {
+                setDeckTitle(updated.title);
+                setCurrentDeck(updated);
+              }}
+            />
 
             {/* Quiz Result Modal */}
             {quizResult && (

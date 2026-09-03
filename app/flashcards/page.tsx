@@ -24,8 +24,10 @@ import {
   Lock,
   Stethoscope,
   Rotate3D,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EditDeckModal } from "@/components/deck/edit-deck-modal";
 
 export default function FlashcardsIndexPage() {
   const { user, getUserDecks, deleteUserDeck } = useAuth();
@@ -34,6 +36,7 @@ export default function FlashcardsIndexPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSpecialty, setSelectedSpecialty] = useState("Tất cả chuyên khoa");
   const [deckToDelete, setDeckToDelete] = useState<DeckWithFolder | null>(null);
+  const [deckToEdit, setDeckToEdit] = useState<DeckWithFolder | null>(null);
   const [showDemoLockAlert, setShowDemoLockAlert] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -289,6 +292,16 @@ export default function FlashcardsIndexPage() {
                       <Plus className="h-4 w-4" />
                     </Link>
 
+                    {/* Edit Deck Button (Rename & Change Specialty) */}
+                    <button
+                      type="button"
+                      onClick={() => setDeckToEdit(deck)}
+                      className="p-2.5 rounded-2xl border border-border hover:bg-amber-50 dark:hover:bg-amber-950/40 text-muted-foreground hover:text-amber-600 transition-colors"
+                      title="Đổi tên hoặc chuyên khoa bộ đề này"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => setDeckToDelete(deck)}
@@ -383,6 +396,16 @@ export default function FlashcardsIndexPage() {
             </div>
           </div>
         )}
+
+        {/* EDIT DECK MODAL */}
+        <EditDeckModal
+          isOpen={!!deckToEdit}
+          onClose={() => setDeckToEdit(null)}
+          deck={deckToEdit}
+          onSuccess={() => {
+            loadAllFlashcardDecks();
+          }}
+        />
       </div>
     </AuthGuard>
   );

@@ -52,6 +52,10 @@ interface AuthContextType {
     newQuestions?: MCQQuestion[],
     newFlashcards?: FlashcardItem[]
   ) => { success: boolean; error?: string; updatedDeck?: Deck; folderName?: string };
+  updateUserDeck: (
+    deckId: string,
+    updates: { title?: string; specialty?: string; description?: string }
+  ) => { success: boolean; error?: string; updatedDeck?: Deck };
 }
 
 // Initial clean Bloom taxonomy stats starting from 0
@@ -822,6 +826,76 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true, updatedDeck: foundDeck, folderName: foundFolderName };
   };
 
+  // UPDATE DECK (RENAME & CHANGE MEDICAL SPECIALTY)
+  const updateUserDeck = (
+    deckId: string,
+    updates: { title?: string; specialty?: string; description?: string }
+  ): { success: boolean; error?: string; updatedDeck?: Deck } => {
+    if (!user) return { success: false, error: "Vui lòng đăng nhập!" };
+
+    let foundDeck: Deck | null = null;
+    const currentFolders = getUserFolders();
+
+    // 1. Update in User's Folder Tree
+    const updateInTree = (nodes: FolderNode[]): FolderNode[] => {
+      return nodes.map((f) => {
+        const updatedDecks = (f.decks || []).map((d) => {
+          if (d.id === deckId) {
+            const modified: Deck = {
+              ...d,
+              ...(updates.title?.trim() ? { title: updates.title.trim() } : {}),
+              ...(updates.specialty?.trim() ? { specialty: updates.specialty.trim() } : {}),
+              ...(updates.description !== undefined ? { description: updates.description.trim() } : {}),
+              updatedAt: new Date().toISOString().split("T")[0],
+            };
+            foundDeck = modified;
+            return modified;
+          }
+          return d;
+        });
+
+        return {
+          ...f,
+          decks: updatedDecks,
+          children: f.children ? updateInTree(f.children) : [],
+        };
+      });
+    };
+
+    const updatedFolders = updateInTree(currentFolders);
+    saveUserFolders(updatedFolders);
+
+    // 2. Also update in User's Scoped Custom Decks
+    try {
+      const userCustomKey = `medlearn_custom_decks_${user.id}`;
+      const stored = localStorage.getItem(userCustomKey);
+      if (stored) {
+        const list: Deck[] = JSON.parse(stored);
+        const updatedList = list.map((d) => {
+          if (d.id === deckId) {
+            const modified: Deck = {
+              ...d,
+              ...(updates.title?.trim() ? { title: updates.title.trim() } : {}),
+              ...(updates.specialty?.trim() ? { specialty: updates.specialty.trim() } : {}),
+              ...(updates.description !== undefined ? { description: updates.description.trim() } : {}),
+              updatedAt: new Date().toISOString().split("T")[0],
+            };
+            if (!foundDeck) foundDeck = modified;
+            return modified;
+          }
+          return d;
+        });
+        localStorage.setItem(userCustomKey, JSON.stringify(updatedList));
+      }
+    } catch (e) {}
+
+    if (!foundDeck) {
+      return { success: false, error: "Không tìm thấy bộ đề để cập nhật!" };
+    }
+
+    return { success: true, updatedDeck: foundDeck };
+  };
+
   // SHARING
   const sendShareRequest = (
     folder: FolderNode,
@@ -940,6 +1014,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         saveUserDeck,
         deleteUserDeck,
         appendItemsToExistingDeck,
+        updateUserDeck,
       }}
     >
       {children}

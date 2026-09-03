@@ -25,8 +25,10 @@ import {
   AlertCircle,
   Inbox,
   AlertTriangle,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EditDeckModal } from "@/components/deck/edit-deck-modal";
 
 interface FolderTreeProps {
   initialFolders?: FolderNode[];
@@ -62,6 +64,7 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
   // Delete states
   const [showDemoLockAlert, setShowDemoLockAlert] = useState(false);
   const [deckToDelete, setDeckToDelete] = useState<{ deck: Deck; folderName?: string } | null>(null);
+  const [deckToEdit, setDeckToEdit] = useState<Deck | null>(null);
   const [folderToDelete, setFolderToDelete] = useState<FolderNode | null>(null);
 
   const isDemoUser = user?.isDemo ?? false;
@@ -295,6 +298,16 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
           >
             <Plus className="h-4 w-4" />
           </Link>
+
+          {/* Edit Deck Button (Rename & Change Specialty) */}
+          <button
+            type="button"
+            onClick={() => setDeckToEdit(deck)}
+            className="p-1.5 rounded-xl text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/50 transition-colors"
+            title="Đổi tên hoặc chuyên khoa bộ đề này"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
 
           {/* Delete Deck Button */}
           <button
@@ -883,6 +896,17 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
           </div>
         </div>
       )}
+
+      {/* EDIT DECK MODAL */}
+      <EditDeckModal
+        isOpen={!!deckToEdit}
+        onClose={() => setDeckToEdit(null)}
+        deck={deckToEdit}
+        onSuccess={() => {
+          const userFolders = getUserFolders();
+          setFolders(userFolders);
+        }}
+      />
     </div>
   );
 }
