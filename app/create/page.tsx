@@ -754,6 +754,9 @@ Bloom: (Chọn 1 trong các mức: REMEMBERING, UNDERSTANDING, APPLYING, ANALYZI
     <AuthGuard
       featureTitle="Creator Studio & AI Batch Importer"
       featureDescription="Vui lòng đăng nhập để sử dụng tính năng AI tự động sinh đề thi lâm sàng và biên soạn ngân hàng câu hỏi chuẩn Bloom."
+      requireNonDemo={true}
+      demoLockTitle="Chế Độ Biên Soạn Đã Bị Khóa Với Tài Khoản Mẫu"
+      demoLockDescription="Tài khoản dùng thử (demo_guest) đang ở chế độ Chỉ Xem để bảo vệ hệ thống. Để tự do tạo câu hỏi, nạp đề thi qua AI/Word/PDF và lưu vào cây thư mục của riêng bạn, vui lòng tạo một tài khoản cá nhân hoàn toàn miễn phí."
     >
       <div className="container mx-auto max-w-6xl px-4 sm:px-6 py-8 sm:py-10 space-y-8">
         {/* Header */}

@@ -154,6 +154,24 @@ export default function QuizIndexPage() {
           </div>
         </div>
 
+        {/* Demo Notice Banner */}
+        {isDemoUser && (
+          <div className="p-4 rounded-2xl border border-amber-300 dark:border-amber-900/60 bg-amber-50/80 dark:bg-amber-950/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-in fade-in">
+            <div className="flex items-center gap-2.5 text-amber-900 dark:text-amber-200">
+              <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+              <span>
+                <strong>Chế độ Xem Thử Nghiệm:</strong> Bạn đang dùng Tài Khoản Mẫu (demo_guest). Bạn có thể làm bài thi thử nghiệm thoải mái, nhưng không thể tạo, chỉnh sửa hoặc xóa bộ đề.
+              </span>
+            </div>
+            <Link
+              href="/register"
+              className="shrink-0 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-center transition-all shadow-xs"
+            >
+              Đăng Ký Tài Khoản Thật
+            </Link>
+          </div>
+        )}
+
         {/* Quick Stat Overview Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="p-5 rounded-3xl border border-sky-200 dark:border-sky-900/60 bg-gradient-to-br from-sky-500/10 via-card to-background shadow-xs space-y-1">
@@ -328,18 +346,35 @@ export default function QuizIndexPage() {
                       <ArrowRight className="h-3.5 w-3.5" />
                     </Link>
 
-                    <Link
-                      href={`/create?appendDeckId=${deck.id}&type=MCQ`}
-                      className="p-2.5 rounded-2xl border border-border hover:bg-sky-50 dark:hover:bg-sky-950/40 text-muted-foreground hover:text-sky-600 transition-colors"
-                      title="Nạp thêm câu hỏi vào bộ đề này"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Link>
+                    {isDemoUser ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowDemoLockAlert(true)}
+                        className="p-2.5 rounded-2xl border border-border hover:bg-sky-50 dark:hover:bg-sky-950/40 text-muted-foreground hover:text-sky-600 transition-colors"
+                        title="Nạp thêm câu hỏi vào bộ đề này"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    ) : (
+                      <Link
+                        href={`/create?appendDeckId=${deck.id}&type=MCQ`}
+                        className="p-2.5 rounded-2xl border border-border hover:bg-sky-50 dark:hover:bg-sky-950/40 text-muted-foreground hover:text-sky-600 transition-colors"
+                        title="Nạp thêm câu hỏi vào bộ đề này"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Link>
+                    )}
 
                     {/* Share Deck Button */}
                     <button
                       type="button"
-                      onClick={() => setDeckToShare(deck)}
+                      onClick={() => {
+                        if (isDemoUser) {
+                          setShowDemoLockAlert(true);
+                          return;
+                        }
+                        setDeckToShare(deck);
+                      }}
                       className="p-2.5 rounded-2xl border border-border hover:bg-sky-50 dark:hover:bg-sky-950/40 text-muted-foreground hover:text-sky-600 transition-colors"
                       title="Chia sẻ bộ đề này cho bạn học hoặc đồng nghiệp"
                     >
@@ -349,7 +384,13 @@ export default function QuizIndexPage() {
                     {/* Edit Deck Button (Rename & Change Specialty) */}
                     <button
                       type="button"
-                      onClick={() => setDeckToEdit(deck)}
+                      onClick={() => {
+                        if (isDemoUser) {
+                          setShowDemoLockAlert(true);
+                          return;
+                        }
+                        setDeckToEdit(deck);
+                      }}
                       className="p-2.5 rounded-2xl border border-border hover:bg-amber-50 dark:hover:bg-amber-950/40 text-muted-foreground hover:text-amber-600 transition-colors"
                       title="Đổi tên hoặc chuyên khoa bộ đề này"
                     >
@@ -358,7 +399,13 @@ export default function QuizIndexPage() {
 
                     <button
                       type="button"
-                      onClick={() => setDeckToDelete(deck)}
+                      onClick={() => {
+                        if (isDemoUser) {
+                          setShowDemoLockAlert(true);
+                          return;
+                        }
+                        setDeckToDelete(deck);
+                      }}
                       className="p-2.5 rounded-2xl border border-border hover:bg-rose-50 dark:hover:bg-rose-950/40 text-muted-foreground hover:text-rose-600 transition-colors"
                       title="Xóa bộ đề này"
                     >

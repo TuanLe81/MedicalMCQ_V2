@@ -76,14 +76,14 @@ const initialCleanBloomStats: Record<BloomLevel, { total: number; correct: numbe
   CREATING: { total: 0, correct: 0, percentage: 0 },
 };
 
-// Seed core demo benchmark leaderboard peers
+// Single Read-Only Demo Account for guest exploration
 const defaultUsers: UserProfile[] = [
   {
-    id: "user_bs_y4_01",
-    name: "BS. Lê Anh Tuấn (Demo)",
-    username: "anhtuan",
-    email: "tuan.le@med.edu.vn",
-    password: "123",
+    id: "user_demo_guest",
+    name: "Tài Khoản Mẫu (Chỉ Xem)",
+    username: "demo_guest",
+    email: "demo@medlearn.vn",
+    password: "demo",
     isDemo: true,
     role: "STUDENT",
     medicalSchool: "Đại học Y Dược TP.HCM",
@@ -93,64 +93,6 @@ const defaultUsers: UserProfile[] = [
     totalQuestionsAnswered: 342,
     totalCorrectAnswers: 289,
     overallAccuracy: 84.5,
-    bloomTaxonomyStats: initialCleanBloomStats,
-  },
-  {
-    id: "user_top1_mai",
-    name: "BSNT. Nguyễn Hoàng Mai",
-    username: "hoangmai",
-    email: "mai.nguyen@med.edu.vn",
-    password: "123",
-    isDemo: true,
-    role: "RESIDENT_DOCTOR",
-    medicalSchool: "Đại học Y Hà Nội (Bác Sĩ Nội Trú)",
-    yearOfStudy: 6,
-    streakCount: 15,
-    lastCheckInDate: new Date().toISOString().split("T")[0],
-    totalQuestionsAnswered: 240,
-    totalCorrectAnswers: 216,
-    overallAccuracy: 90.0,
-    bloomTaxonomyStats: {
-      REMEMBERING: { total: 70, correct: 66, percentage: 94 },
-      UNDERSTANDING: { total: 60, correct: 55, percentage: 92 },
-      APPLYING: { total: 45, correct: 40, percentage: 89 },
-      ANALYZING: { total: 35, correct: 30, percentage: 86 },
-      EVALUATING: { total: 18, correct: 14, percentage: 78 },
-      CREATING: { total: 12, correct: 11, percentage: 92 },
-    },
-  },
-  {
-    id: "user_top2_duc",
-    name: "BS. Trần Minh Đức",
-    username: "minhduc",
-    email: "duc.tran@med.edu.vn",
-    password: "123",
-    isDemo: true,
-    role: "STUDENT",
-    medicalSchool: "Khoa Y - ĐHQG TP.HCM",
-    yearOfStudy: 5,
-    streakCount: 10,
-    lastCheckInDate: new Date().toISOString().split("T")[0],
-    totalQuestionsAnswered: 160,
-    totalCorrectAnswers: 136,
-    overallAccuracy: 85.0,
-    bloomTaxonomyStats: initialCleanBloomStats,
-  },
-  {
-    id: "user_top3_huong",
-    name: "BS. Phạm Thị Hương",
-    username: "thihuong",
-    email: "huong.pham@med.edu.vn",
-    password: "123",
-    isDemo: true,
-    role: "STUDENT",
-    medicalSchool: "Đại học Y Dược Cần Thơ",
-    yearOfStudy: 4,
-    streakCount: 7,
-    lastCheckInDate: new Date().toISOString().split("T")[0],
-    totalQuestionsAnswered: 110,
-    totalCorrectAnswers: 92,
-    overallAccuracy: 83.6,
     bloomTaxonomyStats: initialCleanBloomStats,
   },
 ];
@@ -877,6 +819,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const saveUserFolders = (folders: FolderNode[]): { success: boolean; error?: string } => {
     try {
       if (!user) return { success: false, error: "Vui lòng đăng nhập!" };
+      if (user.isDemo) {
+        return { success: false, error: "Tài khoản Mẫu ở chế độ Chỉ Xem, không thể tạo hoặc sửa đổi thư mục!" };
+      }
       const key = `medlearn_folders_${user.id}`;
       localStorage.setItem(key, JSON.stringify(folders));
 
@@ -981,6 +926,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     parentFolderId?: string
   ): { success: boolean; error?: string } => {
     if (!user) return { success: false, error: "Vui lòng đăng nhập!" };
+    if (user.isDemo) {
+      return { success: false, error: "Tài khoản Mẫu ở chế độ Chỉ Xem, không thể tạo hoặc thêm bộ đề mới!" };
+    }
 
     // 1. Save to User's Scoped Custom Decks
     try {
@@ -1056,6 +1004,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // DELETE DECK PER USER (Synchronized across all views)
   const deleteUserDeck = (deckId: string): { success: boolean; error?: string } => {
     if (!user) return { success: false, error: "Vui lòng đăng nhập!" };
+    if (user.isDemo) {
+      return { success: false, error: "Tài khoản Mẫu ở chế độ Chỉ Xem, không thể xóa bộ đề!" };
+    }
 
     // 1. Remove from User's Folders
     const currentFolders = getUserFolders();
@@ -1090,6 +1041,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     newFlashcards?: FlashcardItem[]
   ): { success: boolean; error?: string; updatedDeck?: Deck; folderName?: string } => {
     if (!user) return { success: false, error: "Vui lòng đăng nhập!" };
+    if (user.isDemo) {
+      return { success: false, error: "Tài khoản Mẫu ở chế độ Chỉ Xem, không thể nạp thêm câu hỏi vào bộ đề!" };
+    }
 
     let foundDeck: Deck | null = null;
     let foundFolderName = "Cây Thư Mục";
@@ -1179,6 +1133,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     updates: { title?: string; specialty?: string; description?: string }
   ): { success: boolean; error?: string; updatedDeck?: Deck } => {
     if (!user) return { success: false, error: "Vui lòng đăng nhập!" };
+    if (user.isDemo) {
+      return { success: false, error: "Tài khoản Mẫu ở chế độ Chỉ Xem, không thể đổi tên hoặc sửa bộ đề!" };
+    }
 
     let foundDeck: Deck | null = null;
     const currentFolders = getUserFolders();
@@ -1251,6 +1208,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       if (!user) return { success: false, error: "Vui lòng đăng nhập!" };
+      if (user.isDemo) {
+        return { success: false, error: "Tài khoản Mẫu ở chế độ Chỉ Xem, không thể chia sẻ tài liệu!" };
+      }
 
       const cleanTarget = target.toLowerCase().trim();
       let usersList = getStoredUsers();
@@ -1364,6 +1324,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     targetFolderId?: string
   ): Promise<{ success: boolean; error?: string }> => {
     try {
+      if (!user) return { success: false, error: "Vui lòng đăng nhập!" };
+      if (user.isDemo) {
+        return { success: false, error: "Tài khoản Mẫu ở chế độ Chỉ Xem, không thể nhận tài liệu chia sẻ!" };
+      }
       const existingSharesStr = localStorage.getItem("medlearn_share_requests");
       let list: FolderShareRequest[] = existingSharesStr
         ? JSON.parse(existingSharesStr)

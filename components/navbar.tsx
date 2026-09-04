@@ -158,9 +158,15 @@ export function Navbar() {
                   <span className="text-xs font-bold leading-tight group-hover:text-sky-600 transition-colors">
                     {user.name}
                   </span>
-                  <span className="text-[10px] text-muted-foreground truncate max-w-[110px]">
-                    {user.medicalSchool || "Sinh viên Y"}
-                  </span>
+                  {user.isDemo ? (
+                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-black">
+                      Chế độ Chỉ Xem
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground truncate max-w-[110px]">
+                      {user.medicalSchool || "Sinh viên Y"}
+                    </span>
+                  )}
                 </div>
                 <ChevronDown className="h-3.5 w-3.5 text-muted-foreground hidden sm:inline" />
               </button>
@@ -172,12 +178,36 @@ export function Navbar() {
                   onMouseLeave={() => setUserDropdownOpen(false)}
                 >
                   <div className="p-2 border-b border-border/60">
-                    <div className="font-bold text-xs text-foreground">{user.name}</div>
-                    <div className="text-[11px] text-muted-foreground truncate">{user.email}</div>
-                    <div className="text-[10px] text-sky-600 font-semibold mt-0.5">
-                      Năm {user.yearOfStudy || 4} • {user.role === "RESIDENT_DOCTOR" ? "Bác Sĩ Nội Trú" : "Sinh Viên Y"}
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="font-bold text-xs text-foreground truncate">{user.name}</div>
+                      {user.isDemo && (
+                        <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-black bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                          Chỉ Xem
+                        </span>
+                      )}
                     </div>
+                    <div className="text-[11px] text-muted-foreground truncate">{user.email}</div>
+                    {user.isDemo ? (
+                      <div className="text-[10px] text-amber-600 dark:text-amber-400 font-bold mt-0.5">
+                        Tài Khoản Mẫu Trải Nghiệm
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-sky-600 font-semibold mt-0.5">
+                        Năm {user.yearOfStudy || 4} • {user.role === "RESIDENT_DOCTOR" ? "Bác Sĩ Nội Trú" : "Sinh Viên Y"}
+                      </div>
+                    )}
                   </div>
+
+                  {user.isDemo && (
+                    <Link
+                      href="/register"
+                      onClick={() => setUserDropdownOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-colors"
+                    >
+                      <Sparkles className="h-4 w-4 text-amber-600" />
+                      <span>Đăng Ký Tài Khoản Thật</span>
+                    </Link>
+                  )}
 
                   <Link
                     href="/dashboard"

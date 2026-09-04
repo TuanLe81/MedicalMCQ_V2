@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { Deck } from "@/types";
 import { useAuth, DeckWithFolder } from "@/lib/auth-context";
 import { MEDICAL_SPECIALTIES } from "@/constants/bloom";
-import { Pencil, Check, X, Layers } from "lucide-react";
+import { Pencil, Check, X, Layers, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface EditDeckModalProps {
@@ -20,7 +21,7 @@ export function EditDeckModal({
   deck,
   onSuccess,
 }: EditDeckModalProps) {
-  const { updateUserDeck } = useAuth();
+  const { user, updateUserDeck } = useAuth();
 
   const [title, setTitle] = useState("");
   const [specialty, setSpecialty] = useState("Nội Tim Mạch");
@@ -52,6 +53,42 @@ export function EditDeckModal({
   }, [deck, isOpen]);
 
   if (!isOpen || !deck) return null;
+
+  if (user?.isDemo) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+        <div className="w-full max-w-md rounded-3xl border border-amber-300 dark:border-amber-900 bg-card p-6 shadow-2xl space-y-4 animate-in zoom-in-95 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-950 text-amber-600 shadow-xs">
+            <Lock className="h-7 w-7" />
+          </div>
+          <div className="space-y-1.5">
+            <h3 className="text-lg font-bold text-foreground">
+              Tài Khoản Mẫu Đang Ở Chế Độ Chỉ Xem
+            </h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Bạn đang đăng nhập bằng Tài Khoản Mẫu (demo_guest). Chế độ này không cho phép đổi tên hoặc chỉnh sửa thông tin bộ đề mẫu. Vui lòng đăng ký tài khoản cá nhân!
+            </p>
+          </div>
+          <div className="pt-2 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 rounded-xl border border-border text-xs font-semibold hover:bg-muted"
+            >
+              Đóng
+            </button>
+            <Link
+              href="/register"
+              onClick={onClose}
+              className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-md shadow-sky-600/20"
+            >
+              Tạo Tài Khoản Riêng
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleSpecialtySelectChange = (val: string) => {
     if (val === "KHAC") {

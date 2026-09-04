@@ -192,6 +192,10 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
   };
 
   const handleAcceptRequest = async (requestId: string) => {
+    if (isDemoUser) {
+      setShowDemoLockAlert(true);
+      return;
+    }
     await respondShareRequest(requestId, true);
     setFolders(getUserFolders());
   };
@@ -266,18 +270,35 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
           </Link>
 
           {/* Append More Questions / Flashcards Button */}
-          <Link
-            href={`/create?appendDeckId=${deck.id}&type=${deck.type}`}
-            className="p-1.5 rounded-xl text-muted-foreground hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/50 transition-colors"
-            title={`Nạp thêm ${isMCQ ? "câu hỏi" : "thẻ"} vào bộ đề này`}
-          >
-            <Plus className="h-4 w-4" />
-          </Link>
+          {isDemoUser ? (
+            <button
+              type="button"
+              onClick={() => setShowDemoLockAlert(true)}
+              className="p-1.5 rounded-xl text-muted-foreground hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/50 transition-colors"
+              title={`Nạp thêm ${isMCQ ? "câu hỏi" : "thẻ"} vào bộ đề này`}
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          ) : (
+            <Link
+              href={`/create?appendDeckId=${deck.id}&type=${deck.type}`}
+              className="p-1.5 rounded-xl text-muted-foreground hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/50 transition-colors"
+              title={`Nạp thêm ${isMCQ ? "câu hỏi" : "thẻ"} vào bộ đề này`}
+            >
+              <Plus className="h-4 w-4" />
+            </Link>
+          )}
 
           {/* Share Deck Button */}
           <button
             type="button"
-            onClick={() => setDeckToShare(deck)}
+            onClick={() => {
+              if (isDemoUser) {
+                setShowDemoLockAlert(true);
+                return;
+              }
+              setDeckToShare(deck);
+            }}
             className="p-1.5 rounded-xl text-muted-foreground hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/50 transition-colors"
             title="Chia sẻ bộ đề này cho bạn học hoặc đồng nghiệp"
           >
@@ -287,7 +308,13 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
           {/* Edit Deck Button (Rename & Change Specialty) */}
           <button
             type="button"
-            onClick={() => setDeckToEdit(deck)}
+            onClick={() => {
+              if (isDemoUser) {
+                setShowDemoLockAlert(true);
+                return;
+              }
+              setDeckToEdit(deck);
+            }}
             className="p-1.5 rounded-xl text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/50 transition-colors"
             title="Đổi tên hoặc chuyên khoa bộ đề này"
           >
@@ -376,6 +403,10 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
+                if (isDemoUser) {
+                  setShowDemoLockAlert(true);
+                  return;
+                }
                 setSelectedParentId(folder.id);
                 setShowNewFolderModal(true);
               }}
@@ -466,6 +497,10 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
           <button
             type="button"
             onClick={() => {
+              if (isDemoUser) {
+                setShowDemoLockAlert(true);
+                return;
+              }
               setSelectedParentId(null);
               setShowNewFolderModal(true);
             }}
@@ -476,6 +511,24 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
           </button>
         </div>
       </div>
+
+      {/* Demo Mode Notice Banner */}
+      {isDemoUser && (
+        <div className="p-4 rounded-2xl border border-amber-300 dark:border-amber-900/60 bg-amber-50/80 dark:bg-amber-950/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-in fade-in">
+          <div className="flex items-center gap-2.5 text-amber-900 dark:text-amber-200">
+            <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>Chế độ Xem Thử Nghiệm:</strong> Bạn đang truy cập bằng Tài Khoản Mẫu (demo_guest). Các thao tác tạo, sửa đổi hoặc xóa tài liệu đều bị khóa ở chế độ này.
+            </span>
+          </div>
+          <Link
+            href="/register"
+            className="shrink-0 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-center transition-all shadow-xs"
+          >
+            Đăng Ký Tài Khoản Thật
+          </Link>
+        </div>
+      )}
 
       {/* EMPTY STATE FOR NEW USERS */}
       {folders.length === 0 ? (
@@ -495,6 +548,10 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
             <button
               type="button"
               onClick={() => {
+                if (isDemoUser) {
+                  setShowDemoLockAlert(true);
+                  return;
+                }
                 setSelectedParentId(null);
                 setShowNewFolderModal(true);
               }}

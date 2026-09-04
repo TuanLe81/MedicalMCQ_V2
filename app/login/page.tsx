@@ -154,43 +154,19 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Quick Demo Login Presets */}
-          <div className="pt-2 border-t border-border/70 space-y-2.5">
-            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block text-center">
-              Đăng Nhập Nhanh Tài Khoản:
-            </span>
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("leanhtuan812006@gmail.com", "123")}
-                className="w-full p-2.5 rounded-xl border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/40 text-left hover:border-sky-500 transition-all text-xs flex items-center justify-between"
-              >
-                <div>
-                  <div className="font-bold text-sky-700 dark:text-sky-300">BS. Lê Anh Tuấn (Chính thức)</div>
-                  <div className="text-[10px] text-muted-foreground">leanhtuan812006@gmail.com • Pass mặc định: 123</div>
-                </div>
-                <span className="text-[10px] bg-sky-600 text-white px-2 py-0.5 rounded-md font-bold">1-Click Đăng Nhập</span>
-              </button>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin("tuan.le@med.edu.vn", "123")}
-                  className="p-2 rounded-xl border border-border bg-card text-left hover:bg-muted transition-all text-xs"
-                >
-                  <div className="font-bold text-foreground">Tài khoản Mẫu</div>
-                  <div className="text-[10px] text-muted-foreground">Dùng thử (Chỉ xem)</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin("mai.nguyen@med.edu.vn", "123")}
-                  className="p-2 rounded-xl border border-border bg-card text-left hover:bg-muted transition-all text-xs"
-                >
-                  <div className="font-bold text-foreground">BSNT. Hoàng Mai</div>
-                  <div className="text-[10px] text-muted-foreground">Nội trú (ĐHYHN)</div>
-                </button>
-              </div>
-            </div>
+          {/* Read-Only Single Guest Demo Access */}
+          <div className="pt-3 border-t border-border/70 space-y-2">
+            <button
+              type="button"
+              onClick={() => handleQuickLogin("demo@medlearn.vn", "demo")}
+              className="w-full py-2.5 px-3 rounded-2xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/60 dark:bg-sky-950/30 hover:bg-sky-100/80 dark:hover:bg-sky-900/40 text-center transition-all text-xs font-semibold text-sky-700 dark:text-sky-300 flex items-center justify-center gap-2"
+            >
+              <Sparkles className="h-4 w-4 text-sky-600 shrink-0" />
+              <span>Dùng thử với Tài Khoản Mẫu (Chế độ Chỉ xem)</span>
+            </button>
+            <p className="text-[11px] text-center text-muted-foreground leading-relaxed">
+              Tài khoản mẫu chỉ dùng để trải nghiệm giao diện và làm bài test thử, không có quyền tạo hoặc chỉnh sửa dữ liệu.
+            </p>
           </div>
         </div>
 
