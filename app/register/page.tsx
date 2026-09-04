@@ -9,13 +9,10 @@ import {
   Lock,
   Mail,
   User,
-  GraduationCap,
   Eye,
   EyeOff,
   ArrowRight,
-  Sparkles,
   AlertCircle,
-  Building,
 } from "lucide-react";
 
 export default function RegisterPage() {

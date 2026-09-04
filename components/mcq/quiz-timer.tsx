@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useEffect, useState } from "react";
 import { Timer, AlertTriangle, Infinity as InfinityIcon } from "lucide-react";
 import { formatTime, cn } from "@/lib/utils";

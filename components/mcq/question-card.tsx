@@ -1,5 +1,3 @@
-"use client";
-
 import React from "react";
 import { MCQQuestion } from "@/types";
 import { BloomBadge } from "./bloom-badge";

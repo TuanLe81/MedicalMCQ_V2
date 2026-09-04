@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useEffect } from "react";
 import Link from "next/link";
 import confetti from "canvas-confetti";
