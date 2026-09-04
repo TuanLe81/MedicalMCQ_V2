@@ -50,13 +50,19 @@ export default function LoginPage() {
   const handleQuickLogin = async (email: string, pass: string) => {
     setIdentity(email);
     setPassword(pass);
+    setErrorMessage("");
     setIsLoading(true);
     try {
-      await login(email, pass);
+      const res = await login(email, pass);
       setIsLoading(false);
-      router.push("/dashboard");
+      if (res.success) {
+        router.push("/dashboard");
+      } else {
+        setErrorMessage(res.error || "Đăng nhập không thành công.");
+      }
     } catch (err) {
       setIsLoading(false);
+      setErrorMessage("Đã xảy ra lỗi kết nối khi đăng nhập!");
     }
   };
 

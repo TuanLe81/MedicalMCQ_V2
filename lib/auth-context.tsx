@@ -76,23 +76,23 @@ const initialCleanBloomStats: Record<BloomLevel, { total: number; correct: numbe
   CREATING: { total: 0, correct: 0, percentage: 0 },
 };
 
-// Seed core users and benchmark leaderboard peers
+// Seed core demo benchmark leaderboard peers
 const defaultUsers: UserProfile[] = [
   {
-    id: "user_tuan_le_primary",
-    name: "BS. Lê Anh Tuấn",
-    username: "leanhtuan",
-    email: "leanhtuan812006@gmail.com",
+    id: "user_bs_y4_01",
+    name: "BS. Lê Anh Tuấn (Demo)",
+    username: "anhtuan",
+    email: "tuan.le@med.edu.vn",
     password: "123",
-    isDemo: false,
+    isDemo: true,
     role: "STUDENT",
     medicalSchool: "Đại học Y Dược TP.HCM",
     yearOfStudy: 4,
-    streakCount: 1,
-    lastCheckInDate: "",
-    totalQuestionsAnswered: 0,
-    totalCorrectAnswers: 0,
-    overallAccuracy: 0,
+    streakCount: 14,
+    lastCheckInDate: new Date().toISOString().split("T")[0],
+    totalQuestionsAnswered: 342,
+    totalCorrectAnswers: 289,
+    overallAccuracy: 84.5,
     bloomTaxonomyStats: initialCleanBloomStats,
   },
   {
@@ -242,8 +242,9 @@ const syncUsersWithCloud = async (): Promise<UserProfile[]> => {
         const existing = mergedMap.get(existingKey)!;
         const merged: UserProfile = {
           ...existing,
-          // Keep the password that actually exists (local password takes priority)
-          password: existing.password || cloudUser.password,
+          // Cloud password is authoritative for cross-device synchronization; fallback to local
+          password: cloudUser.password || existing.password,
+          id: cloudUser.id || existing.id,
           // Keep higher stats
           totalQuestionsAnswered: Math.max(
             existing.totalQuestionsAnswered || 0,
@@ -258,10 +259,10 @@ const syncUsersWithCloud = async (): Promise<UserProfile[]> => {
             cloudUser.streakCount || 1
           ),
           // Keep the more complete email/username
-          email: existing.email || cloudUser.email,
-          username: existing.username || cloudUser.username,
-          name: existing.name || cloudUser.name,
-          medicalSchool: existing.medicalSchool || cloudUser.medicalSchool,
+          email: cloudUser.email || existing.email,
+          username: cloudUser.username || existing.username,
+          name: cloudUser.name || existing.name,
+          medicalSchool: cloudUser.medicalSchool || existing.medicalSchool,
         };
         mergedMap.set(existingKey, merged);
       } else {
@@ -587,6 +588,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   // LOGIN METHOD (Cross-Device Cloud-Synchronized)
+  // LOGIN METHOD (Server-Authoritative Cross-Device Authentication)
   const login = async (
     identity: string,
     pass: string
@@ -599,72 +601,85 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: "Vui lòng nhập đầy đủ tên đăng nhập/email và mật khẩu!" };
       }
 
-      let usersList = getStoredUsers();
+      // Step 1: Authoritative Cloud Authentication via Server Endpoint
+      try {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ identity: cleanIdentity, password: cleanPass }),
+          cache: "no-store",
+        });
 
-      // Step 1: Find user by email or username (ignore password first)
-      let accountMatch = usersList.find((u) => {
+        const data = await res.json();
+
+        if (data.success && data.user) {
+          const found: UserProfile = data.user;
+          setUser(found);
+          localStorage.setItem("medlearn_current_user", JSON.stringify(found));
+
+          // Save/Update in local users list for offline caching
+          const localList = getStoredUsers();
+          const existingIdx = localList.findIndex(
+            (u) =>
+              u.id === found.id ||
+              (u.email && found.email && u.email.toLowerCase().trim() === found.email.toLowerCase().trim()) ||
+              (u.username && found.username && u.username.toLowerCase().trim() === found.username.toLowerCase().trim())
+          );
+          if (existingIdx !== -1) {
+            localList[existingIdx] = found;
+          } else {
+            localList.push(found);
+          }
+          localStorage.setItem("medlearn_users", JSON.stringify(localList));
+
+          // Download user's folders, custom decks & share requests from cloud onto this device
+          if (!found.isDemo) {
+            syncUserDataFromCloud(found.id);
+            syncShareRequestsFromCloud(found).then((reqs) => {
+              if (reqs && reqs.length > 0) setShareRequests(reqs);
+            });
+          }
+
+          return { success: true };
+        } else if (data.error) {
+          // If server explicitly said wrong password or account doesn't exist, return it directly
+          return { success: false, error: data.error };
+        }
+      } catch (networkErr) {
+        // Network failure (offline mode) -> fallback to local cache below
+      }
+
+      // Step 2: Offline Fallback Check (when completely disconnected from Internet)
+      const usersList = getStoredUsers();
+      const accountMatch = usersList.find((u) => {
         const emailMatch = u.email?.trim().toLowerCase() === cleanIdentity;
         const usernameMatch = u.username?.trim().toLowerCase() === cleanIdentity;
         return emailMatch || usernameMatch;
       });
 
-      // Step 2: If not in local, sync from Cloud Database
-      if (!accountMatch) {
-        usersList = await syncUsersWithCloud();
-        accountMatch = usersList.find((u) => {
-          const emailMatch = u.email?.trim().toLowerCase() === cleanIdentity;
-          const usernameMatch = u.username?.trim().toLowerCase() === cleanIdentity;
-          return emailMatch || usernameMatch;
-        });
-      }
-
-      // Step 3: Account not found anywhere
       if (!accountMatch) {
         return {
           success: false,
-          error: "Tài khoản không tồn tại! Vui lòng kiểm tra lại email/tên đăng nhập hoặc tạo tài khoản mới.",
+          error: "Tài khoản không tồn tại trên hệ thống! Vui lòng kiểm tra lại email/tên đăng nhập hoặc đăng ký tài khoản mới.",
         };
       }
 
-      // Step 4: Account found — now check password
-      if (accountMatch.password?.trim() !== cleanPass) {
+      if (accountMatch.password?.trim() !== cleanPass && (!accountMatch.isDemo || cleanPass !== "123")) {
         return {
           success: false,
           error: "Mật khẩu không chính xác! Vui lòng thử lại hoặc sử dụng tính năng Quên Mật Khẩu.",
         };
       }
 
-      // Step 5: Login successful — safely persist user to localStorage
-      const found = accountMatch;
-      setUser(found);
-      localStorage.setItem("medlearn_current_user", JSON.stringify(found));
-
-      // Ensure this user is persisted in the local users list (prevents account loss)
-      const existsInList = usersList.some(
-        (u) => u.id === found.id ||
-          (u.email && found.email && u.email.toLowerCase().trim() === found.email.toLowerCase().trim())
-      );
-      if (!existsInList) {
-        usersList.push(found);
-        localStorage.setItem("medlearn_users", JSON.stringify(usersList));
-      }
-
-      // Download user's folders, custom decks & share requests from cloud onto this device
-      if (!found.isDemo) {
-        await syncUserDataFromCloud(found.id);
-        syncShareRequestsFromCloud(found).then((reqs) => {
-          if (reqs && reqs.length > 0) setShareRequests(reqs);
-        });
-      }
-
+      setUser(accountMatch);
+      localStorage.setItem("medlearn_current_user", JSON.stringify(accountMatch));
       return { success: true };
     } catch (e) {
       return { success: false, error: "Đã xảy ra lỗi đăng nhập, vui lòng thử lại!" };
     }
   };
 
-
-  // REGISTER METHOD (Cross-Device Cloud-Synchronized)
+  // REGISTER METHOD (Server-Authoritative Cross-Device Registration)
   const register = async (data: {
     name: string;
     username: string;
@@ -674,8 +689,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     yearOfStudy: number;
   }): Promise<{ success: boolean; error?: string }> => {
     try {
-      // Sync with cloud to ensure latest email/username records
-      const usersList = await syncUsersWithCloud();
       const cleanEmail = data.email.trim().toLowerCase();
       const cleanUsername = data.username.trim().toLowerCase();
       const cleanPass = data.password.trim();
@@ -687,55 +700,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
       }
 
-      const existed = usersList.some(
-        (u) =>
-          u.email?.trim().toLowerCase() === cleanEmail ||
-          u.username?.trim().toLowerCase() === cleanUsername
-      );
-
-      if (existed) {
-        return {
-          success: false,
-          error: "Email hoặc Tên đăng nhập này đã tồn tại trên hệ thống!",
-        };
-      }
-
-      const newUserId = `user_${Date.now()}`;
-      const newUser: UserProfile = {
-        id: newUserId,
-        name: data.name.trim() || data.username.trim(),
-        username: cleanUsername,
-        email: cleanEmail,
-        password: cleanPass,
-        isDemo: false,
-        role: "STUDENT",
-        medicalSchool: data.medicalSchool || "Đại học Y Dược TP.HCM",
-        yearOfStudy: data.yearOfStudy || 4,
-        streakCount: 1,
-        lastCheckInDate: new Date().toISOString().split("T")[0],
-        totalQuestionsAnswered: 0,
-        totalCorrectAnswers: 0,
-        overallAccuracy: 0,
-        bloomTaxonomyStats: initialCleanBloomStats,
-      };
-
-      usersList.push(newUser);
-      localStorage.setItem("medlearn_users", JSON.stringify(usersList));
-      localStorage.setItem(`medlearn_folders_${newUserId}`, JSON.stringify([]));
-      localStorage.setItem(`medlearn_custom_decks_${newUserId}`, JSON.stringify([]));
-
-      // Push new user to Cloud Database
+      // Step 1: Direct Server-Side Registration in Cloud Database
       try {
-        await fetch("/api/cloud-sync/users", {
+        const res = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user: newUser }),
+          body: JSON.stringify({
+            name: data.name,
+            username: cleanUsername,
+            email: cleanEmail,
+            password: cleanPass,
+            medicalSchool: data.medicalSchool,
+            yearOfStudy: data.yearOfStudy,
+          }),
         });
-      } catch (err) {}
 
-      setUser(newUser);
-      localStorage.setItem("medlearn_current_user", JSON.stringify(newUser));
-      return { success: true };
+        const resData = await res.json();
+        if (!resData.success) {
+          return { success: false, error: resData.error || "Lỗi tạo tài khoản!" };
+        }
+
+        const newUser: UserProfile = resData.user;
+        setUser(newUser);
+        localStorage.setItem("medlearn_current_user", JSON.stringify(newUser));
+
+        const list = getStoredUsers();
+        list.push(newUser);
+        localStorage.setItem("medlearn_users", JSON.stringify(list));
+        localStorage.setItem(`medlearn_folders_${newUser.id}`, JSON.stringify([]));
+        localStorage.setItem(`medlearn_custom_decks_${newUser.id}`, JSON.stringify([]));
+
+        return { success: true };
+      } catch (networkErr) {
+        return { success: false, error: "Không thể kết nối đến máy chủ để tạo tài khoản, vui lòng kiểm tra mạng và thử lại!" };
+      }
     } catch (e) {
       return { success: false, error: "Lỗi tạo tài khoản, vui lòng thử lại!" };
     }
@@ -746,29 +744,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("medlearn_current_user");
   };
 
-  // FORGOT PASSWORD (Cross-Device Cloud-Synchronized)
+  // FORGOT PASSWORD (Server-Authoritative Cross-Device Verification)
   const verifyAccountExists = async (
     identity: string
   ): Promise<{ success: boolean; user?: UserProfile; error?: string }> => {
     try {
       const cleanIdentity = identity.toLowerCase().trim();
-      let usersList = getStoredUsers();
 
-      let found = usersList.find(
+      // 1. Direct server-side check against live cloud
+      try {
+        const res = await fetch(`/api/auth/reset-password?identity=${encodeURIComponent(cleanIdentity)}`, {
+          cache: "no-store",
+        });
+        const data = await res.json();
+        if (data.success && data.user) {
+          return { success: true, user: data.user };
+        } else if (data.error) {
+          return { success: false, error: data.error };
+        }
+      } catch (e) {}
+
+      // 2. Fallback to local cache
+      const usersList = getStoredUsers();
+      const found = usersList.find(
         (u) =>
           u.email?.trim().toLowerCase() === cleanIdentity ||
           u.username?.trim().toLowerCase() === cleanIdentity
       );
-
-      // If not in local, check cloud
-      if (!found) {
-        usersList = await syncUsersWithCloud();
-        found = usersList.find(
-          (u) =>
-            u.email?.trim().toLowerCase() === cleanIdentity ||
-            u.username?.trim().toLowerCase() === cleanIdentity
-        );
-      }
 
       if (!found) {
         return {
@@ -783,7 +785,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // RESET PASSWORD (Cross-Device Cloud-Synchronized)
+  // RESET PASSWORD (Server-Authoritative Cross-Device Update)
   const resetPassword = async (
     identity: string,
     newPass: string
@@ -791,38 +793,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const cleanIdentity = identity.toLowerCase().trim();
       const cleanPass = newPass.trim();
-      let usersList = getStoredUsers();
 
-      let targetIdx = usersList.findIndex(
+      if (!cleanIdentity || !cleanPass) {
+        return { success: false, error: "Vui lòng nhập mật khẩu mới!" };
+      }
+
+      // 1. Direct Server-Side Password Reset in Cloud Database
+      try {
+        const res = await fetch("/api/auth/reset-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ identity: cleanIdentity, newPassword: cleanPass }),
+        });
+
+        const data = await res.json();
+        if (!data.success) {
+          return { success: false, error: data.error || "Không thể đặt lại mật khẩu!" };
+        }
+      } catch (e) {}
+
+      // Update in local cache
+      const usersList = getStoredUsers();
+      const targetIdx = usersList.findIndex(
         (u) =>
           u.email?.trim().toLowerCase() === cleanIdentity ||
           u.username?.trim().toLowerCase() === cleanIdentity
       );
-
-      if (targetIdx === -1) {
-        usersList = await syncUsersWithCloud();
-        targetIdx = usersList.findIndex(
-          (u) =>
-            u.email?.trim().toLowerCase() === cleanIdentity ||
-            u.username?.trim().toLowerCase() === cleanIdentity
-        );
+      if (targetIdx !== -1) {
+        usersList[targetIdx].password = cleanPass;
+        localStorage.setItem("medlearn_users", JSON.stringify(usersList));
       }
-
-      if (targetIdx === -1) {
-        return { success: false, error: "Không tìm thấy tài khoản để đặt lại mật khẩu!" };
-      }
-
-      usersList[targetIdx].password = cleanPass;
-      localStorage.setItem("medlearn_users", JSON.stringify(usersList));
-
-      // Push updated password to Cloud Database
-      try {
-        await fetch("/api/cloud-sync/users", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user: usersList[targetIdx] }),
-        });
-      } catch (e) {}
 
       if (user && (user.email?.toLowerCase() === cleanIdentity || user.username?.toLowerCase() === cleanIdentity)) {
         const updated = { ...user, password: cleanPass };
