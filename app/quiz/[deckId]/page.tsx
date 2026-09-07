@@ -34,6 +34,8 @@ import {
   LogOut,
   Check,
   Pencil,
+  Minus,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EditDeckModal } from "@/components/deck/edit-deck-modal";
@@ -70,6 +72,7 @@ export default function QuizPage() {
   const [isUnlimitedTime, setIsUnlimitedTime] = useState<boolean>(false);
   const [isExamMode, setIsExamMode] = useState<boolean>(false); // false = instant feedback; true = test mode
   const [showTimeModal, setShowTimeModal] = useState<boolean>(false);
+  const [modalTimeMode, setModalTimeMode] = useState<"TIMED" | "UNLIMITED">("TIMED");
   const [shuffleToast, setShuffleToast] = useState<string | null>(null);
 
   // In-Quiz States
@@ -342,6 +345,23 @@ export default function QuizPage() {
     setQuizResult(null);
   };
 
+  const openTimeModal = () => {
+    setModalTimeMode(isUnlimitedTime ? "UNLIMITED" : "TIMED");
+    setCustomInputMinutes(String(timerMinutes));
+    setShowTimeModal(true);
+  };
+
+  const handleSetUnlimitedTime = () => {
+    setIsUnlimitedTime(true);
+    setShowTimeModal(false);
+  };
+
+  const handleStepMinutes = (delta: number) => {
+    const current = Number(customInputMinutes) || 15;
+    const updated = Math.max(1, Math.min(300, current + delta));
+    setCustomInputMinutes(String(updated));
+  };
+
   const applyCustomTime = (mins: number) => {
     const validMins = Math.max(1, Math.min(300, mins));
     setTimerMinutes(validMins);
@@ -468,6 +488,25 @@ export default function QuizPage() {
                       Chế Độ Thi Thử
                     </button>
                   </div>
+                )}
+
+                {/* Timer Quick Adjustment Button - Visible on All Devices (Mobile, Tablet, Laptop, Desktop) */}
+                {!hasSubmitted && !reviewMode && (
+                  <button
+                    type="button"
+                    onClick={openTimeModal}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-sky-300 dark:border-sky-800 bg-sky-50/90 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 font-bold text-xs transition-all shadow-xs active:scale-95 cursor-pointer"
+                    title="Chỉnh sửa thời gian làm bài (Hẹn giờ hoặc Tự do)"
+                  >
+                    <Clock className="h-3.5 w-3.5 text-sky-600 shrink-0" />
+                    <span className="font-mono font-bold">
+                      {isUnlimitedTime ? formatTime(elapsedSeconds) : formatTime(secondsRemaining)}
+                    </span>
+                    <span className="hidden sm:inline text-[10px] text-sky-600/80 dark:text-sky-400/80 font-medium">
+                      {isUnlimitedTime ? "(Tự do)" : `(${timerMinutes}p)`}
+                    </span>
+                    <Sliders className="h-3 w-3 text-sky-500 opacity-80 shrink-0" />
+                  </button>
                 )}
               </div>
             </div>
@@ -603,7 +642,7 @@ export default function QuizPage() {
                       {!hasSubmitted && !isPaused && (
                         <button
                           type="button"
-                          onClick={() => setShowTimeModal(true)}
+                          onClick={openTimeModal}
                           className="text-[11px] font-bold text-sky-600 hover:underline flex items-center gap-1"
                         >
                           <Sliders className="h-3 w-3" />
@@ -613,15 +652,27 @@ export default function QuizPage() {
                     </div>
 
                     {/* Big Digital Clock */}
-                    <div className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-br from-sky-50 to-indigo-50 dark:from-sky-950/40 dark:to-indigo-950/40 border border-sky-200 dark:border-sky-900">
+                    <div
+                      onClick={() => !hasSubmitted && !isPaused && openTimeModal()}
+                      className={cn(
+                        "flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-br from-sky-50 to-indigo-50 dark:from-sky-950/40 dark:to-indigo-950/40 border border-sky-200 dark:border-sky-900",
+                        !hasSubmitted && !isPaused && "cursor-pointer hover:border-sky-400 dark:hover:border-sky-700 transition-all group"
+                      )}
+                      title={!hasSubmitted && !isPaused ? "Nhấp để đổi thời gian làm bài" : undefined}
+                    >
                       <div className="space-y-0.5">
-                        <div className="text-2xl font-mono font-black text-sky-700 dark:text-sky-300">
+                        <div className="text-2xl font-mono font-black text-sky-700 dark:text-sky-300 group-hover:text-sky-600 transition-colors">
                           {isUnlimitedTime
                             ? formatTime(elapsedSeconds)
                             : formatTime(secondsRemaining)}
                         </div>
-                        <span className="text-[10px] text-muted-foreground font-semibold">
-                          {isUnlimitedTime ? "Thời gian tự do" : "Thời gian còn lại"}
+                        <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
+                          <span>{isUnlimitedTime ? "Thời gian tự do" : "Thời gian còn lại"}</span>
+                          {!hasSubmitted && !isPaused && (
+                            <span className="text-sky-600 dark:text-sky-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                              • Đổi giờ
+                            </span>
+                          )}
                         </span>
                       </div>
 
@@ -763,13 +814,19 @@ export default function QuizPage() {
             {/* FLOATING ACTION BAR FOR MOBILE / TABLET (Tối ưu thiết bị di động) */}
             <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 p-3 bg-background/95 backdrop-blur-md border-t border-border shadow-2xl">
               <div className="container mx-auto flex items-center justify-between gap-2">
-                {/* Timer Display */}
-                <div className="flex items-center gap-2 font-mono font-bold text-xs sm:text-sm text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 px-3 py-2 rounded-xl border border-sky-200 dark:border-sky-800">
-                  <Clock className="h-3.5 w-3.5" />
+                {/* Timer Display / Tap to Adjust Button */}
+                <button
+                  type="button"
+                  onClick={openTimeModal}
+                  className="flex items-center gap-1.5 font-mono font-bold text-xs sm:text-sm text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 px-2.5 sm:px-3 py-2 rounded-xl border border-sky-200 dark:border-sky-800 active:scale-95 transition-all shadow-xs"
+                  title="Nhấn để điều chỉnh thời gian làm bài"
+                >
+                  <Clock className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
                   <span>
                     {isUnlimitedTime ? formatTime(elapsedSeconds) : formatTime(secondsRemaining)}
                   </span>
-                </div>
+                  <Sliders className="h-3 w-3 text-sky-500/70 shrink-0 ml-0.5" />
+                </button>
 
                 {/* Quick Toggle Palette Drawer */}
                 <button
@@ -821,6 +878,29 @@ export default function QuizPage() {
               {/* Expandable Mobile Palette Drawer */}
               {mobilePaletteOpen && (
                 <div className="pt-3 mt-3 border-t border-border/80 space-y-3 animate-in slide-in-from-bottom-2">
+                  {/* Quick Timer Row on mobile drawer */}
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-muted/50 border border-border text-xs">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-sky-600 shrink-0" />
+                      <div className="flex flex-col">
+                        <span className="font-bold text-foreground">
+                          {isUnlimitedTime ? "Thời gian: Tự do" : `Thời gian: ${timerMinutes} phút`}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {isUnlimitedTime ? "Đếm xuôi" : `Còn lại: ${formatTime(secondsRemaining)}`}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={openTimeModal}
+                      className="px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs"
+                    >
+                      <Sliders className="h-3.5 w-3.5" />
+                      <span>Đổi Giờ</span>
+                    </button>
+                  </div>
+
                   <div className="flex items-center justify-between text-xs font-bold">
                     <span>Chọn câu để cuộn nhanh:</span>
                     <button
@@ -868,60 +948,184 @@ export default function QuizPage() {
 
             {/* Custom Time Modal */}
             {showTimeModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-                <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl space-y-4 animate-in zoom-in-95">
-                  <div className="flex items-center gap-2 text-foreground font-bold text-base">
-                    <Clock className="h-5 w-5 text-sky-600" />
-                    <span>Cài Đặt Thời Gian Tự Do</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Nhập số phút bạn muốn làm bài kiểm tra (Từ 1 đến 180 phút):
-                  </p>
-
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min={1}
-                      max={300}
-                      value={customInputMinutes}
-                      onChange={(e) => setCustomInputMinutes(e.target.value)}
-                      placeholder="Số phút (VD: 20, 60, 90...)"
-                      className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm font-bold text-foreground focus:ring-2 focus:ring-sky-500/50 outline-none"
-                    />
-                    <span className="text-sm font-semibold text-muted-foreground whitespace-nowrap">
-                      Phút
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-4 gap-1.5 pt-1">
-                    {[10, 20, 45, 60, 90, 120].map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setCustomInputMinutes(String(m))}
-                        className="py-1.5 rounded-lg border border-border/80 bg-muted/40 hover:bg-muted text-xs font-bold"
-                      >
-                        {m}p
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in">
+                <div className="w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-2xl space-y-4 animate-in zoom-in-95">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5 text-foreground font-bold text-base">
+                      <div className="p-2 rounded-xl bg-sky-100 dark:bg-sky-950 text-sky-600">
+                        <Clock className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-sm sm:text-base text-foreground leading-tight">
+                          Cài Đặt Thời Gian Làm Bài
+                        </h3>
+                        <p className="text-[11px] text-muted-foreground">
+                          Hỗ trợ trên mọi thiết bị: Điện thoại, Tablet, Laptop
+                        </p>
+                      </div>
+                    </div>
                     <button
                       type="button"
                       onClick={() => setShowTimeModal(false)}
-                      className="px-3.5 py-2 rounded-xl border border-border text-xs font-semibold hover:bg-muted"
+                      className="p-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                     >
-                      Đóng
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* Mode Tabs */}
+                  <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-muted/60 border border-border/80 text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setModalTimeMode("TIMED")}
+                      className={cn(
+                        "py-2 rounded-xl transition-all flex items-center justify-center gap-1.5",
+                        modalTimeMode === "TIMED"
+                          ? "bg-card text-sky-600 dark:text-sky-400 shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>Có Hẹn Giờ</span>
                     </button>
                     <button
                       type="button"
-                      onClick={() => applyCustomTime(Number(customInputMinutes) || 15)}
-                      className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-xs"
+                      onClick={() => setModalTimeMode("UNLIMITED")}
+                      className={cn(
+                        "py-2 rounded-xl transition-all flex items-center justify-center gap-1.5",
+                        modalTimeMode === "UNLIMITED"
+                          ? "bg-card text-emerald-600 dark:text-emerald-400 shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
                     >
-                      Áp Dụng Hẹn Giờ
+                      <InfinityIcon className="h-3.5 w-3.5" />
+                      <span>Không Giới Hạn</span>
                     </button>
                   </div>
+
+                  {modalTimeMode === "TIMED" ? (
+                    <div className="space-y-4">
+                      {/* Stepper & Direct Input */}
+                      <div>
+                        <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">
+                          Thời gian làm bài (Phút)
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleStepMinutes(-5)}
+                            className="h-11 w-11 shrink-0 rounded-2xl border border-border bg-muted/50 hover:bg-muted flex items-center justify-center text-foreground font-bold active:scale-95 transition-all"
+                            title="Giảm 5 phút"
+                          >
+                            <Minus className="h-4 w-4" />
+                          </button>
+                          <div className="relative flex-1">
+                            <input
+                              type="number"
+                              min={1}
+                              max={300}
+                              value={customInputMinutes}
+                              onChange={(e) => setCustomInputMinutes(e.target.value)}
+                              placeholder="Số phút"
+                              className="w-full h-11 px-4 text-center rounded-2xl border border-border bg-background text-base font-black text-foreground focus:ring-2 focus:ring-sky-500/50 outline-none"
+                            />
+                            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground pointer-events-none">
+                              phút
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleStepMinutes(5)}
+                            className="h-11 w-11 shrink-0 rounded-2xl border border-border bg-muted/50 hover:bg-muted flex items-center justify-center text-foreground font-bold active:scale-95 transition-all"
+                            title="Tăng 5 phút"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Quick Presets */}
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] text-muted-foreground font-semibold mb-1.5">
+                          <span>Mốc thời gian phổ biến:</span>
+                          {questions.length > 0 && Number(customInputMinutes) > 0 && (
+                            <span className="text-sky-600 dark:text-sky-400 font-bold">
+                              ~{Math.round(((Number(customInputMinutes) || 1) * 60) / questions.length)}s / câu
+                            </span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5">
+                          {[5, 10, 15, 20, 30, 45, 60, 90, 120].map((m) => {
+                            const isSelected = Number(customInputMinutes) === m;
+                            return (
+                              <button
+                                key={m}
+                                type="button"
+                                onClick={() => setCustomInputMinutes(String(m))}
+                                className={cn(
+                                  "py-2 rounded-xl text-xs font-bold border transition-all active:scale-95",
+                                  isSelected
+                                    ? "border-sky-500 bg-sky-500 text-white shadow-xs"
+                                    : "border-border/80 bg-muted/30 hover:bg-muted text-foreground"
+                                )}
+                              >
+                                {m}p
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
+                        <button
+                          type="button"
+                          onClick={() => setShowTimeModal(false)}
+                          className="px-4 py-2.5 rounded-xl border border-border text-xs font-semibold hover:bg-muted text-foreground transition-colors"
+                        >
+                          Hủy
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyCustomTime(Number(customInputMinutes) || 15)}
+                          className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-md shadow-sky-600/20 transition-all active:scale-95 flex items-center gap-1.5"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          <span>Áp Dụng {Number(customInputMinutes) || 15} Phút</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 space-y-2 text-xs">
+                        <div className="flex items-center gap-2 font-bold text-emerald-800 dark:text-emerald-300">
+                          <InfinityIcon className="h-4 w-4" />
+                          <span>Chế độ không giới hạn thời gian</span>
+                        </div>
+                        <p className="text-emerald-700/90 dark:text-emerald-400 text-xs leading-relaxed">
+                          Đồng hồ sẽ đếm xuôi từ 00:00 giúp bạn đo lường tổng thời gian làm bài mà không bị áp lực hết giờ tự động nộp bài.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
+                        <button
+                          type="button"
+                          onClick={() => setShowTimeModal(false)}
+                          className="px-4 py-2.5 rounded-xl border border-border text-xs font-semibold hover:bg-muted text-foreground transition-colors"
+                        >
+                          Hủy
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSetUnlimitedTime}
+                          className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 flex items-center gap-1.5"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          <span>Bật Thời Gian Tự Do</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
