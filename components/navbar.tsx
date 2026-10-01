@@ -24,8 +24,10 @@ import {
   LogOut,
   ChevronDown,
   Lock,
+  Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ShareRequestsModal } from "@/components/deck/share-requests-modal";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -36,6 +38,7 @@ export function Navbar() {
   const [mounted, setMounted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   const pendingShareCount = (shareRequests || []).filter(
     (r) => r.status === "PENDING"
@@ -126,6 +129,27 @@ export function Navbar() {
               <Flame className="h-4 w-4 fill-amber-500 text-amber-500 animate-bounce" />
               <span>{user.streakCount} Ngày</span>
             </Link>
+          )}
+
+          {/* Notification Bell for Share Requests (Global across all pages) */}
+          {isAuthenticated && user && !user.isDemo && (
+            <button
+              type="button"
+              onClick={() => setShowShareModal(true)}
+              className="relative p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors border border-border/50"
+              title={
+                pendingShareCount > 0
+                  ? `Bạn có ${pendingShareCount} lời mời chia sẻ tài liệu mới`
+                  : "Hộp thư chia sẻ tài liệu"
+              }
+            >
+              <Bell className={cn("h-4 w-4", pendingShareCount > 0 && "text-sky-600 dark:text-sky-400 animate-pulse")} />
+              {pendingShareCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4.5 min-w-4.5 px-1 items-center justify-center rounded-full bg-rose-600 text-white text-[9px] font-black animate-pulse shadow-xs">
+                  {pendingShareCount}
+                </span>
+              )}
+            </button>
           )}
 
           {/* Dark Mode Toggle */}
@@ -312,6 +336,27 @@ export function Navbar() {
             );
           })}
 
+          {isAuthenticated && user && !user.isDemo && (
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setShowShareModal(true);
+              }}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-foreground bg-indigo-50/50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 transition-all text-left"
+            >
+              <div className="flex items-center gap-3">
+                <Bell className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                <span>Hộp Thư Chia Sẻ Tài Liệu</span>
+              </div>
+              {pendingShareCount > 0 && (
+                <span className="flex h-5 min-w-5 px-1.5 items-center justify-center rounded-full bg-rose-600 text-white text-[10px] font-black animate-pulse shadow-xs">
+                  {pendingShareCount} mới
+                </span>
+              )}
+            </button>
+          )}
+
           {!isAuthenticated && (
             <div className="pt-3 border-t border-border flex items-center gap-2">
               <Link
@@ -332,6 +377,12 @@ export function Navbar() {
           )}
         </div>
       )}
+
+      {/* Global Share Requests Modal */}
+      <ShareRequestsModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+      />
     </header>
   );
 }

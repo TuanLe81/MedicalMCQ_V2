@@ -60,6 +60,17 @@ export default function FlashcardsIndexPage() {
 
   useEffect(() => {
     loadAllFlashcardDecks();
+
+    const handleSync = () => {
+      loadAllFlashcardDecks();
+    };
+
+    window.addEventListener("medlearn_data_synced", handleSync);
+    window.addEventListener("storage", handleSync);
+    return () => {
+      window.removeEventListener("medlearn_data_synced", handleSync);
+      window.removeEventListener("storage", handleSync);
+    };
   }, [user]);
 
   // Handle Delete Deck with clean synchronization

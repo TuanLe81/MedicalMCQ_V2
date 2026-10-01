@@ -83,6 +83,17 @@ export default function QuizIndexPage() {
 
   useEffect(() => {
     loadAllMCQDecks();
+
+    const handleSync = () => {
+      loadAllMCQDecks();
+    };
+
+    window.addEventListener("medlearn_data_synced", handleSync);
+    window.addEventListener("storage", handleSync);
+    return () => {
+      window.removeEventListener("medlearn_data_synced", handleSync);
+      window.removeEventListener("storage", handleSync);
+    };
   }, [user]);
 
   // Handle Delete Deck with clean synchronization

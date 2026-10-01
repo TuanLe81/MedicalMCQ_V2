@@ -64,6 +64,8 @@ interface AuthContextType {
     deckId: string,
     updates: { title?: string; specialty?: string; description?: string }
   ) => { success: boolean; error?: string; updatedDeck?: Deck };
+  refreshShareRequests: () => Promise<FolderShareRequest[]>;
+  syncCloudData: () => Promise<void>;
 }
 
 // Initial clean Bloom taxonomy stats starting from 0
@@ -245,16 +247,67 @@ const syncUsersWithCloud = async (): Promise<UserProfile[]> => {
   }
 };
 
-// Sync folders and custom decks for a user from Cloud Database
-const syncUserDataFromCloud = async (userId: string) => {
-  if (typeof window === "undefined" || !userId) return;
+export function mergeDecksSafely(listA: Deck[] = [], listB: Deck[] = []): Deck[] {
+  const map = new Map<string, Deck>();
+  for (const d of listA) {
+    if (d && d.id) map.set(d.id, d);
+  }
+  for (const d of listB) {
+    if (!d || !d.id) continue;
+    if (map.has(d.id)) {
+      const existing = map.get(d.id)!;
+      const countA = (existing.questions?.length || 0) + (existing.flashcards?.length || 0);
+      const countB = (d.questions?.length || 0) + (d.flashcards?.length || 0);
+      if (countB >= countA) {
+        map.set(d.id, { ...existing, ...d });
+      } else {
+        map.set(d.id, { ...d, ...existing });
+      }
+    } else {
+      map.set(d.id, d);
+    }
+  }
+  return Array.from(map.values());
+}
+
+export function mergeFoldersSafely(listA: FolderNode[] = [], listB: FolderNode[] = []): FolderNode[] {
+  const map = new Map<string, FolderNode>();
+  for (const f of listA) {
+    if (f && f.id) map.set(f.id, f);
+  }
+  for (const f of listB) {
+    if (!f || !f.id) continue;
+    if (map.has(f.id)) {
+      const existing = map.get(f.id)!;
+      const mergedDecks = mergeDecksSafely(existing.decks || [], f.decks || []);
+      const mergedChildren = mergeFoldersSafely(existing.children || [], f.children || []);
+      map.set(f.id, {
+        ...existing,
+        ...f,
+        decks: mergedDecks,
+        children: mergedChildren,
+      });
+    } else {
+      map.set(f.id, f);
+    }
+  }
+  return Array.from(map.values());
+}
+
+// Sync folders and custom decks for a user from Cloud Database with Non-Destructive Deep Merge
+const syncUserDataFromCloud = async (userId: string, email?: string): Promise<{ folders: FolderNode[]; decks: Deck[] }> => {
+  if (typeof window === "undefined" || !userId) return { folders: [], decks: [] };
   try {
-    const res = await fetch(`/api/cloud-sync/user-data?userId=${userId}`, {
+    const params = new URLSearchParams();
+    params.set("userId", userId);
+    if (email) params.set("email", email.toLowerCase().trim());
+
+    const res = await fetch(`/api/cloud-sync/user-data?${params.toString()}`, {
       cache: "no-store",
     });
-    if (!res.ok) return;
+    if (!res.ok) return { folders: [], decks: [] };
     const data = await res.json();
-    if (!data.success) return;
+    if (!data.success) return { folders: [], decks: [] };
 
     const foldersKey = `medlearn_folders_${userId}`;
     const decksKey = `medlearn_custom_decks_${userId}`;
@@ -262,50 +315,50 @@ const syncUserDataFromCloud = async (userId: string) => {
     const localFoldersRaw = localStorage.getItem(foldersKey);
     const localDecksRaw = localStorage.getItem(decksKey);
 
-    const localFolders = localFoldersRaw ? JSON.parse(localFoldersRaw) : [];
-    const localDecks = localDecksRaw ? JSON.parse(localDecksRaw) : [];
+    const localFolders: FolderNode[] = localFoldersRaw ? JSON.parse(localFoldersRaw) : [];
+    const localDecks: Deck[] = localDecksRaw ? JSON.parse(localDecksRaw) : [];
 
-    // If cloud has folders and local is empty, update local
-    if (data.folders && Array.isArray(data.folders) && data.folders.length > 0) {
-      if (!localFolders || localFolders.length === 0) {
-        localStorage.setItem(foldersKey, JSON.stringify(data.folders));
-      }
-    } else if (localFolders && localFolders.length > 0) {
-      // Local has folders, cloud is empty: push local to cloud
+    const cloudFolders: FolderNode[] = Array.isArray(data.folders) ? data.folders : [];
+    const cloudDecks: Deck[] = Array.isArray(data.decks) ? data.decks : [];
+
+    // Deep merge both lists safely
+    const mergedFolders = mergeFoldersSafely(localFolders, cloudFolders);
+    const mergedDecks = mergeDecksSafely(localDecks, cloudDecks);
+
+    localStorage.setItem(foldersKey, JSON.stringify(mergedFolders));
+    localStorage.setItem(decksKey, JSON.stringify(mergedDecks));
+
+    // If local had items cloud didn't, push merged back to cloud asynchronously
+    if (mergedFolders.length > cloudFolders.length || mergedDecks.length > cloudDecks.length) {
       fetch("/api/cloud-sync/user-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, folders: localFolders }),
+        body: JSON.stringify({ userId, email, folders: mergedFolders, decks: mergedDecks }),
       }).catch(() => {});
     }
 
-    // If cloud has custom decks and local is empty, update local
-    if (data.decks && Array.isArray(data.decks) && data.decks.length > 0) {
-      if (!localDecks || localDecks.length === 0) {
-        localStorage.setItem(decksKey, JSON.stringify(data.decks));
-      }
-    } else if (localDecks && localDecks.length > 0) {
-      // Local has decks, cloud is empty: push local to cloud
-      fetch("/api/cloud-sync/user-data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, decks: localDecks }),
-      }).catch(() => {});
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("medlearn_data_synced", {
+        detail: { userId, folders: mergedFolders, decks: mergedDecks }
+      }));
     }
-  } catch (e) {}
+
+    return { folders: mergedFolders, decks: mergedDecks };
+  } catch (e) {
+    return { folders: [], decks: [] };
+  }
 };
 
-// Helper to sync share requests from cloud
+// Helper to sync share requests from cloud with per-user scoping
 const syncShareRequestsFromCloud = async (
   currentUser: UserProfile
 ): Promise<FolderShareRequest[]> => {
-  if (typeof window === "undefined" || !currentUser) return [];
+  if (typeof window === "undefined" || !currentUser || currentUser.isDemo) return [];
   try {
     const params = new URLSearchParams();
     if (currentUser.email) params.set("targetEmail", currentUser.email.toLowerCase().trim());
     if (currentUser.username) params.set("targetUsername", currentUser.username.toLowerCase().trim());
     if (currentUser.id) params.set("targetId", currentUser.id);
-    // Legacy support
     const targetIdentity = currentUser.email || currentUser.username;
     if (targetIdentity) params.set("targetIdentity", targetIdentity.toLowerCase().trim());
 
@@ -316,15 +369,11 @@ const syncShareRequestsFromCloud = async (
     if (!res.ok) return [];
     const data = await res.json();
     if (data.success && Array.isArray(data.shareRequests)) {
-      // Only keep PENDING or recent requests for the inbox display
-      const inboxRequests = data.shareRequests.filter(
-        (r: FolderShareRequest) => r.status === "PENDING" || r.status === "ACCEPTED" || r.status === "REJECTED"
-      );
-      localStorage.setItem(
-        "medlearn_share_requests",
-        JSON.stringify(inboxRequests)
-      );
-      return inboxRequests;
+      // Scoped key per user
+      const scopedKey = `medlearn_share_requests_${currentUser.id}`;
+      localStorage.setItem(scopedKey, JSON.stringify(data.shareRequests));
+      localStorage.setItem("medlearn_share_requests", JSON.stringify(data.shareRequests));
+      return data.shareRequests;
     }
   } catch (e) {}
   return [];
@@ -349,17 +398,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         parsedUser.totalCorrectAnswers = parsedUser.totalCorrectAnswers ?? 0;
         parsedUser.streakCount = parsedUser.streakCount ?? 1;
         setUser(parsedUser);
+
+        // Load Share Requests from user scoped key
+        const scopedKey = `medlearn_share_requests_${parsedUser.id}`;
+        const storedShares = localStorage.getItem(scopedKey) || localStorage.getItem("medlearn_share_requests");
+        if (storedShares) {
+          setShareRequests(JSON.parse(storedShares));
+        }
       } else {
         setUser(null);
-      }
-
-      // Load Share Requests
-      const storedShares = localStorage.getItem("medlearn_share_requests");
-      if (storedShares) {
-        setShareRequests(JSON.parse(storedShares));
+        setShareRequests([]);
       }
     } catch (e) {
       setUser(null);
+      setShareRequests([]);
     } finally {
       setIsLoading(false);
     }
@@ -370,9 +422,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (activeUserStr) {
         const parsed = JSON.parse(activeUserStr);
         if (parsed?.id && !parsed.isDemo) {
-          syncUserDataFromCloud(parsed.id);
+          syncUserDataFromCloud(parsed.id, parsed.email);
           syncShareRequestsFromCloud(parsed).then((reqs) => {
-            if (reqs && reqs.length > 0) {
+            if (reqs) {
               setShareRequests(reqs);
             }
           });
@@ -380,6 +432,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
   }, []);
+
+  // Polling for share requests every 15s in background
+  useEffect(() => {
+    if (!user || user.isDemo) return;
+
+    const interval = setInterval(() => {
+      syncShareRequestsFromCloud(user).then((reqs) => {
+        if (reqs) {
+          setShareRequests(reqs);
+        }
+      });
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [user]);
+
+  const refreshShareRequests = async (): Promise<FolderShareRequest[]> => {
+    if (!user || user.isDemo) return [];
+    const reqs = await syncShareRequestsFromCloud(user);
+    setShareRequests(reqs);
+    return reqs;
+  };
+
+  const syncCloudData = async (): Promise<void> => {
+    if (!user || user.isDemo) return;
+    await syncUserDataFromCloud(user.id, user.email);
+    const reqs = await syncShareRequestsFromCloud(user);
+    setShareRequests(reqs);
+  };
 
   // DAILY CHECK-IN & STREAK SYSTEM
   const checkInDaily = (): {
@@ -576,10 +657,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           // Download user's folders, custom decks & share requests from cloud onto this device
           if (!found.isDemo) {
-            syncUserDataFromCloud(found.id);
-            syncShareRequestsFromCloud(found).then((reqs) => {
-              if (reqs && reqs.length > 0) setShareRequests(reqs);
-            });
+            await syncUserDataFromCloud(found.id, found.email);
+            const reqs = await syncShareRequestsFromCloud(found);
+            setShareRequests(reqs || []);
           }
 
           return { success: true };
@@ -615,6 +695,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(accountMatch);
       localStorage.setItem("medlearn_current_user", JSON.stringify(accountMatch));
+      if (!accountMatch.isDemo) {
+        const scopedShares = localStorage.getItem(`medlearn_share_requests_${accountMatch.id}`);
+        if (scopedShares) {
+          try { setShareRequests(JSON.parse(scopedShares)); } catch (e) {}
+        }
+      }
       return { success: true };
     } catch (e) {
       return { success: false, error: "Đã xảy ra lỗi đăng nhập, vui lòng thử lại!" };
@@ -683,7 +769,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
+    setShareRequests([]);
     localStorage.removeItem("medlearn_current_user");
+    localStorage.removeItem("medlearn_share_requests");
   };
 
   // FORGOT PASSWORD (Server-Authoritative Cross-Device Verification)
@@ -790,6 +878,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: uid,
+          email: user?.email,
           folders: foldersRaw ? JSON.parse(foldersRaw) : undefined,
           decks: decksRaw ? JSON.parse(decksRaw) : undefined,
         }),
@@ -806,6 +895,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const stored = localStorage.getItem(key);
       if (stored) {
         return JSON.parse(stored);
+      }
+      // Check historical aliases if user_tuan_le_primary or leanhtuan812006@gmail.com
+      if (!stored && (user.id === "user_tuan_le_primary" || user.email?.toLowerCase() === "leanhtuan812006@gmail.com")) {
+        for (const aliasId of ["user_1787990889812", "user_1788359970116", "user_1788455279250"]) {
+          const aliasStored = localStorage.getItem(`medlearn_folders_${aliasId}`);
+          if (aliasStored) {
+            try {
+              const parsedAlias = JSON.parse(aliasStored);
+              if (Array.isArray(parsedAlias) && parsedAlias.length > 0) {
+                localStorage.setItem(key, aliasStored);
+                return parsedAlias;
+              }
+            } catch (e) {}
+          }
+        }
       }
       if (user.isDemo) {
         return MOCK_FOLDERS;
@@ -825,8 +929,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const key = `medlearn_folders_${user.id}`;
       localStorage.setItem(key, JSON.stringify(folders));
 
-      // Asynchronously push to cloud
+      // Asynchronously push to cloud with non-destructive merge
       pushUserDecksAndFoldersToCloud(user.id);
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("medlearn_data_synced", {
+          detail: { userId: user.id, folders }
+        }));
+      }
 
       return { success: true };
     } catch (e) {
@@ -870,7 +980,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 2. Also check user-scoped custom decks
     try {
       const userCustomKey = `medlearn_custom_decks_${user.id}`;
-      const userCustomStr = localStorage.getItem(userCustomKey);
+      let userCustomStr = localStorage.getItem(userCustomKey);
+      if (!userCustomStr && (user.id === "user_tuan_le_primary" || user.email?.toLowerCase() === "leanhtuan812006@gmail.com")) {
+        for (const aliasId of ["user_1787990889812", "user_1788359970116", "user_1788455279250"]) {
+          const aliasStr = localStorage.getItem(`medlearn_custom_decks_${aliasId}`);
+          if (aliasStr) {
+            userCustomStr = aliasStr;
+            localStorage.setItem(userCustomKey, aliasStr);
+            break;
+          }
+        }
+      }
       if (userCustomStr) {
         const list: Deck[] = JSON.parse(userCustomStr);
         for (const d of list) {
@@ -930,12 +1050,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: "Tài khoản Mẫu ở chế độ Chỉ Xem, không thể tạo hoặc thêm bộ đề mới!" };
     }
 
-    // 1. Save to User's Scoped Custom Decks
+    // 1. Save to User's Scoped Custom Decks (with deduplication)
     try {
       const userCustomKey = `medlearn_custom_decks_${user.id}`;
       const stored = localStorage.getItem(userCustomKey);
       const list: Deck[] = stored ? JSON.parse(stored) : [];
-      list.unshift(deck);
+      const existingIdx = list.findIndex((d) => d.id === deck.id);
+      if (existingIdx !== -1) {
+        list[existingIdx] = deck;
+      } else {
+        list.unshift(deck);
+      }
       localStorage.setItem(userCustomKey, JSON.stringify(list));
     } catch (e) {}
 
@@ -1017,19 +1142,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         children: f.children ? removeDeckFromHierarchy(f.children) : [],
       }));
     };
-    const updated = removeDeckFromHierarchy(currentFolders);
-    saveUserFolders(updated);
+    const updatedFolders = removeDeckFromHierarchy(currentFolders);
+    const folderKey = `medlearn_folders_${user.id}`;
+    localStorage.setItem(folderKey, JSON.stringify(updatedFolders));
 
     // 2. Remove from User's Scoped Custom Decks
+    let updatedDecks: Deck[] = [];
     try {
       const userCustomKey = `medlearn_custom_decks_${user.id}`;
       const stored = localStorage.getItem(userCustomKey);
       if (stored) {
         const list: Deck[] = JSON.parse(stored);
-        const filtered = list.filter((d) => d.id !== deckId);
-        localStorage.setItem(userCustomKey, JSON.stringify(filtered));
+        updatedDecks = list.filter((d) => d.id !== deckId);
+        localStorage.setItem(userCustomKey, JSON.stringify(updatedDecks));
       }
     } catch (e) {}
+
+    // Explicitly sync deletion to cloud
+    try {
+      fetch("/api/cloud-sync/user-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          email: user.email,
+          folders: updatedFolders,
+          decks: updatedDecks,
+          isFullReplace: true,
+        }),
+      }).catch(() => {});
+    } catch (e) {}
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("medlearn_data_synced", { detail: { userId: user.id } }));
+    }
 
     return { success: true };
   };
@@ -1398,9 +1544,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           };
 
           const decksInSharedFolder = extractDecks([sharedFolderCopy]);
-          const newDecksList = [...decksInSharedFolder, ...currentCustomDecks];
+          const newDecksList = mergeDecksSafely(decksInSharedFolder, currentCustomDecks);
           localStorage.setItem(customKey, JSON.stringify(newDecksList));
           pushUserDecksAndFoldersToCloud(user.id);
+        }
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("medlearn_data_synced", { detail: { userId: user.id } }));
         }
       }
 
@@ -1434,6 +1584,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         deleteUserDeck,
         appendItemsToExistingDeck,
         updateUserDeck,
+        refreshShareRequests,
+        syncCloudData,
       }}
     >
       {children}

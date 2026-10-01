@@ -30,6 +30,7 @@ import {
 import { cn } from "@/lib/utils";
 import { EditDeckModal } from "@/components/deck/edit-deck-modal";
 import { ShareItemModal } from "@/components/deck/share-item-modal";
+import { ShareRequestsModal } from "@/components/deck/share-requests-modal";
 
 interface FolderTreeProps {
   initialFolders?: FolderNode[];
@@ -69,16 +70,28 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
 
   const isDemoUser = user?.isDemo ?? false;
 
-  // Load active user folders
+  // Load active user folders and listen for live cloud sync events
   useEffect(() => {
-    const userFolders = getUserFolders();
-    setFolders(userFolders);
-    // Expand root folders by default
-    const initExpanded: { [id: string]: boolean } = {};
-    userFolders.forEach((f) => {
-      initExpanded[f.id] = true;
-    });
-    setExpandedFolders(initExpanded);
+    const refresh = () => {
+      const userFolders = getUserFolders();
+      setFolders(userFolders);
+      setExpandedFolders((prev) => {
+        const next = { ...prev };
+        userFolders.forEach((f) => {
+          if (next[f.id] === undefined) next[f.id] = true;
+        });
+        return next;
+      });
+    };
+
+    refresh();
+
+    window.addEventListener("medlearn_data_synced", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("medlearn_data_synced", refresh);
+      window.removeEventListener("storage", refresh);
+    };
   }, [user]);
 
   const toggleExpand = (folderId: string) => {
@@ -189,20 +202,6 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
       return;
     }
     setSharingFolder(folder);
-  };
-
-  const handleAcceptRequest = async (requestId: string) => {
-    if (isDemoUser) {
-      setShowDemoLockAlert(true);
-      return;
-    }
-    await respondShareRequest(requestId, true);
-    setFolders(getUserFolders());
-  };
-
-  const handleRejectRequest = async (requestId: string) => {
-    await respondShareRequest(requestId, false);
-    setFolders(getUserFolders());
   };
 
   const renderDeckCard = (deck: Deck, folderName?: string) => {
@@ -766,111 +765,12 @@ export function FolderTree({ initialFolders }: FolderTreeProps) {
       />
 
       {/* SHARE REQUESTS INBOX MODAL */}
-      {showShareRequestsInbox && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
-          <div className="w-full max-w-lg rounded-3xl border border-border bg-card p-6 shadow-2xl space-y-4 animate-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-border/60 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-400">
-                  <Inbox className="h-4 w-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base text-foreground">
-                    Hộp Thư Lời Mời Chia Sẻ
-                  </h3>
-                  <p className="text-[11px] text-muted-foreground">
-                    Nhận tài liệu, thư mục và bộ đề được gửi từ các bác sĩ khác
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowShareRequestsInbox(false)}
-                className="text-muted-foreground hover:text-foreground text-sm p-1 rounded-lg hover:bg-muted"
-              >
-                ✕
-              </button>
-            </div>
+      <ShareRequestsModal
+        isOpen={showShareRequestsInbox}
+        onClose={() => setShowShareRequestsInbox(false)}
+        onAccepted={() => setFolders(getUserFolders())}
+      />
 
-            {shareRequests.length === 0 ? (
-              <div className="py-10 text-center text-xs text-muted-foreground space-y-2">
-                <Inbox className="h-10 w-10 mx-auto opacity-30 text-sky-600" />
-                <p className="font-medium">Bạn chưa có lời mời chia sẻ nào.</p>
-                <p className="text-[11px] opacity-70">
-                  Khi đồng nghiệp hoặc bạn học gửi chia sẻ thư mục/bộ đề, lời mời sẽ xuất hiện tại đây.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                {shareRequests.map((req) => {
-                  const isDeckReq = req.itemType === "DECK";
-                  const isMCQ = isDeckReq && req.deckData?.type === "MCQ";
-
-                  return (
-                    <div
-                      key={req.id}
-                      className="p-4 rounded-2xl border border-border bg-background/60 space-y-2.5 text-xs hover:border-sky-300 dark:hover:border-sky-800 transition-all"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-1.5 font-bold text-foreground text-sm">
-                            <span className="text-base">
-                              {isDeckReq ? (isMCQ ? "📝" : "🗂️") : "📁"}
-                            </span>
-                            <span>{req.deckTitle || req.folderName}</span>
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                              {isDeckReq ? `Bộ đề ${req.deckData?.type || "Y Khoa"}` : "Thư mục"}
-                            </span>
-                          </div>
-                          <div className="text-[11px] text-muted-foreground">
-                            Từ: <strong className="text-foreground">{req.ownerName}</strong>{" "}
-                            ({req.ownerSchool || "Trường Y"}) • {req.createdAt}
-                          </div>
-                        </div>
-                        <span
-                          className={cn(
-                            "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase shrink-0",
-                            req.status === "PENDING"
-                              ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                              : req.status === "ACCEPTED"
-                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                              : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
-                          )}
-                        >
-                          {req.status === "PENDING"
-                            ? "Chờ duyệt"
-                            : req.status === "ACCEPTED"
-                            ? "Đã nhận"
-                            : "Đã từ chối"}
-                        </span>
-                      </div>
-
-                      {req.status === "PENDING" && (
-                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
-                          <button
-                            type="button"
-                            onClick={() => handleRejectRequest(req.id)}
-                            className="px-3 py-1.5 rounded-xl border border-border text-[11px] font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                          >
-                            Từ Chối
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleAcceptRequest(req.id)}
-                            className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-all shadow-xs"
-                          >
-                            ✓ Chấp Nhận &amp; Thêm Vào Thư Viện
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* DEMO LOCKED ALERT MODAL */}
       {showDemoLockAlert && (
